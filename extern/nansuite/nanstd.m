@@ -1,4 +1,4 @@
-function y = nanstd(x,dim,flag)
+function y = nanstd(x,flag, dim)
 % FORMAT: Y = NANSTD(X,DIM,FLAG)
 % 
 %    Standard deviation ignoring NaNs
@@ -37,11 +37,11 @@ if isempty(x)
 	return
 end
 
-if nargin < 3
+if nargin < 2
 	flag = 0;
 end
 
-if nargin < 2
+if nargin < 3
 	dim = min(find(size(x)~=1));
 	if isempty(dim)
 		dim = 1; 
