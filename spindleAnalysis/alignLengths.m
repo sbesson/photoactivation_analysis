@@ -3,8 +3,8 @@ clc
 close all
 
 % Define constants
-dataPath = uigetdir('Select the main directory');
-%dataPath = 'Z:\Sarah\Bipolar spindle assembly assay';
+%dataPath = uigetdir('Select the main directory');
+dataPath = 'Z:\Sarah\Bipolar spindle assembly assay';
 if isequal(dataPath, 0), return; end
 
 % Read conditions from folder names
@@ -16,7 +16,7 @@ conditions(dotDirs) = [];
 nConditions = numel(conditions);
 
 % Alignment parameters
-minSpindleLength = 5; % minimum spindle length (in microns)
+minSpindleLength = 6; % minimum spindle length (in microns)
 sigma = 3; % Sigma to exclude outliers (using final spindle length)
 
 % define small and large fonts for graphical output
@@ -93,13 +93,13 @@ for iCondition = 1:nConditions
         % Calculate mininimum and maximum times
         imin = max(1,find(~isnan(alignedmean),1,'first'));
         tmin = min(tmin, alignedTimes(imin));
-        imax = min(find(~isnan(alignedmean(imin:end)),1,'last'), ...
+        imax = min(find(~isnan(alignedmean(imin:end)),1,'last')+imin, ...
             2*s.nTimePoints);
         tmax = max(tmax, alignedTimes(imax));
         set(gca, 'LineWidth', 1.5, sfont{:}, 'Layer', 'top');
         xlabel('Time (min)', lfont{:});
         ylabel('Spindle length (\mum)', lfont{:});
-        xlim([tmin tmax]);
+        xlim([alignedTimes(imin) alignedTimes(imax)]);
         
         print(gcf,'-dtiff',fullfile(conditionPath,...
             [conditions{iCondition} '-' sheets{iSheet} '-aligneddata.tif']));
