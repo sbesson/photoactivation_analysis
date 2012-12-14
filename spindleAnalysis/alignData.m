@@ -79,12 +79,8 @@ eventValues = NaN(nSamples, 1);
 % Detect events for each time-series (values above threshold)
 for i=1:nSamples
     if find( data(:,i) > minSpindleLength, 1)
-        lastrise = find( data(:, i) < minSpindleLength, 1, 'last');
-        if  isempty(lastrise),
-            eventIndex(i) = 1;
-        else
-            eventIndex(i) = lastrise;
-        end
+        eventIndex(i) = find( data(:,i) > minSpindleLength, 1, 'first');
+        if  eventIndex(i) > 1,  eventIndex(i)=  eventIndex(i)-1; end
     else
         eventIndex(i) = nTimePoints/2;
     end
