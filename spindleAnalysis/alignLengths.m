@@ -124,6 +124,10 @@ for iCondition = 1:nConditions
                 pooledData = [pooledData extendedata];
                 
             elseif size(pooledData, 1) < size(s.aligneddata, 1)
+                nRows = -(size(pooledData, 1) - size(s.aligneddata, 1))/2;
+                addRow = NaN(nRows, size(pooledData,2));
+                extendedata =  [addRow; pooledData; addRow];
+                pooledData = [extendedata s.aligneddata];
                 pooledTimes = alignedTimes;
             else
                 pooledData = [pooledData s.aligneddata];
