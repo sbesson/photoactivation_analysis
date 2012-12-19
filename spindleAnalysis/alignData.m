@@ -106,4 +106,5 @@ s.nTimePoints = nTimePoints;
 s.eventIndex = eventIndex;
 s.eventTimes = eventTimes;
 s.eventValues = eventValues;
-s.aligneddata = aligneddata;
+s.alignedData = aligneddata;
+s.alignedTimes  = (-s.nTimePoints+1:s.nTimePoints) * 10;
