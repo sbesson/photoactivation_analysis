@@ -42,8 +42,7 @@ for iCondition = 1:nConditions
     fileLog{iCondition} = [fileLog{iCondition}...
         sprintf('Found %g worskheets\n', nSeries)];
     seriesLog = cell(nSeries, 1);
-    pooledData = [];
-    
+
     for iSeries = 1 : nSeries
         %% Read raw data
         [data, str] = xlsread(xlsfile, series{iSeries});
@@ -84,8 +83,10 @@ for iCondition = 1:nConditions
             seriesLog{iSeries} = [seriesLog{iSeries}...
                 'Removing outliers: ' sprintf('%g ', outlierIndex) sprintf('\n')];
             data(:, outlierIndex)=[];
+            finalLengths(outlierIndex) = [];
         end
         
+        conditions(iCondition).series(iSeries).finalLengths = finalLengths;
         conditions(iCondition).series(iSeries).data = data;
         
         
@@ -110,6 +111,11 @@ for iCondition = 1:nConditions
             [conditions(iCondition).name '-' series{iSeries} '-events.tif']));
         close(gcf)
         
+        %% Measure elongation rates
+        elongationRate = @(x) diff(vertcat(x.events.values),1)./diff(vertcat(x.events.times),1);
+        conditions(iCondition).series(iSeries).elongationRate = ...
+            elongationRate(conditions(iCondition).series(iSeries));
+        
         %% Align data
         seriesLog{iSeries} = [seriesLog{iSeries} ...
             'Aligning data using ' events(1).name sprintf('\n')];
@@ -124,33 +130,17 @@ for iCondition = 1:nConditions
         print(gcf,'-dtiff',fullfile(conditionPath,...
             [conditions(iCondition).name '-' series{iSeries} '-aligneddata.tif']));
         close(gcf)
-        
-        %% Aggregate data for the condition
-        if isempty(pooledData)
-            pooledData = alignedData;
-            pooledTimes = alignedTimes;
-        else
-            if size(pooledData, 1) > size(alignedData, 1)
-                nRows = (size(pooledData, 1) - size(alignedData, 1))/2;
-                addRow = NaN(nRows, size(alignedData,2));
-                extendedata =  [addRow; alignedData; addRow];
-                pooledData = [pooledData extendedata];
-                
-            elseif size(pooledData, 1) < size(alignedData, 1)
-                nRows = -(size(pooledData, 1) - size(alignedData, 1))/2;
-                addRow = NaN(nRows, size(pooledData,2));
-                extendedata =  [addRow; pooledData; addRow];
-                pooledData = [extendedata alignedData];
-                pooledTimes = alignedTimes;
-            else
-                pooledData = [pooledData alignedData];
-            end
-        end
     end
     
-    % Save aligned times and data
-    conditions(iCondition).alignedTimes = pooledTimes;
-    conditions(iCondition).alignedData = pooledData;
+    % Aggregate scalar measurements
+    conditions(iCondition).elongationRate = ...
+        horzcat(conditions(iCondition).series.elongationRate);
+    
+    % Pool aligned data
+    [alignedTimes, alignedData] = ...
+        poolAlignedData(conditions(iCondition).series);
+    conditions(iCondition).alignedTimes = alignedTimes;
+    conditions(iCondition).alignedData = alignedData;
     
     % Display and save full log
     disp([fileLog{iCondition} seriesLog{:}])
