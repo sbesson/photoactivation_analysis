@@ -19,7 +19,7 @@ nElements = numel(s);
 colors = hsv(nElements);
 tmin = Inf;
 tmax = -Inf;
-time_max = max([s.alignedTimes]);
+time_max = max(vertcat(s.alignedTimes));
 
 for i = 1 : nElements
     
@@ -41,7 +41,7 @@ for i = 1 : nElements
     tmax = max(tmax, s(i).alignedTimes(imin+imax));
 
     hold on;
-    errorbar(s(i).alignedTimes', alignedmean, alignedste,...
+    errorbar(s(i).alignedTimes, alignedmean, alignedste,...
         '-','Color', colors(i,:), 'LineWidth', 1);
 end
 

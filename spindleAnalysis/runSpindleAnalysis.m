@@ -58,6 +58,8 @@ for iCondition = 1:nConditions
         
         % Extract first column (time points)
         times = data(:,1);
+        dt = unique(diff(times));
+        assert(isscalar(dt), 'Times not evenly spaces');
         conditions(iCondition).series(iSeries).times = times;
         data(:,1)=[];
         data(:,all(isnan(data),1))=[];
@@ -112,9 +114,9 @@ for iCondition = 1:nConditions
         seriesLog{iSeries} = [seriesLog{iSeries} ...
             'Aligning data using ' events(1).name sprintf('\n')];
         alignedData = alignData(data, events(1).index);
-        alignedTimes = (-nTimePoints+1:nTimePoints) * 10;
+        alignedTimes = (-nTimePoints+1:nTimePoints)' * dt;
         conditions(iCondition).series(iSeries).alignedData = alignedData;
-        conditions(iCondition).series(iSeries).alignedTimes  = (-nTimePoints+1:nTimePoints) * 10;
+        conditions(iCondition).series(iSeries).alignedTimes  = alignedTimes;
         
         % Plot aligned data
         figure;
