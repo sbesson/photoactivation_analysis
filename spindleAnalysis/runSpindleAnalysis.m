@@ -24,7 +24,6 @@ minSpindleLength = 6; % minimum spindle length (in microns)
 sigma = 3; % Sigma to exclude outliers (using final spindle length)
 
 for iCondition = 1:nConditions
-    sheetFig = figure;
     
     % Find Excel file in condition folder
     conditionPath = fullfile(dataPath, conditions(iCondition).name);
