@@ -1,51 +1,52 @@
-function [events, log] = detectEvents(data, minSpindleLength)
+function [events, log] = detectEvents(data,times, minSpindleLength)
 % Detects multiple events in time-series
 %
-% SYNOPSIS [events, log] = detectEvents(data, minSpindleLength)
+% SYNOPSIS [events, log] = detectEvents(data, times, minSpindleLength)
 %
-% This function Then it detects the
-% timepoint where the value exceeds a given threshold. Finally it realigns
-% all series using this set of event %
+% This function detects individual events in timeseries.
+% 1 - the onset, i.e. where the value exceeds a given threshold.
+% 2 - the maximum
 %
 % INPUT
-%       data - a n x m matrix containing the time-series
+%       data - a nTimepoints x nSamples matrix containing the time-series
 %
-%       minSpindleLenght - the minimum spindle length to detect events and
+%       times - a nTimepoints x 1 matrix containing the time points
+%
+%       minSpindleLengh - the minimum spindle length to detect events and
 %       align the time series
 %
 % OUTPUT
-%      events - an array structure containing the output of the alignment. This
-%      structure contains the following field
-%          times: an array containing the times
-%          originaldata: the orginal timeseries before outlier removal
-%          originaldata: the timeseries after outlier removal
-%          eventIndex: the index of the detected events
-%          eventTimes: the times of the detected events
-%          alignedata: the aligned data (should be a 2n x m matrix)
+%      events - an array of structures containing the events. Each element
+%      of the array contains the following field
+%          
+%          name: Name of the detection event
+%          detectionFunc: Function applied to detect the event
+%          index: index of the event for each sample
+%          values: value of the events for each sample
+%          times: time where the event occurs for each sample
 %
-%
-%      log - a string containing the log of the alignment function
-%
+%      log - a string containing the log of the event detection function
 
-% Sebastien Besson Nov 2012
+% Sebastien Besson Dec 2012
 
 % Input check
 ip = inputParser;
 ip.addRequired('data',@isnumeric);
-ip.addRequired('minSpindleLength',@isscalar);
-ip.parse(data, minSpindleLength);
-
-%%
 nTimePoints = size(data, 1);
 nSamples = size(data, 2);
+ip.addRequired('times',@(x) isvector(x) && numel(x) == nTimePoints);
+ip.addRequired('minSpindleLength', @isscalar);
+ip.parse(data, times, minSpindleLength);
+
+%% Initialize output structure array
+
 nEvents = 2;
 
-C =mat2cell(NaN(nEvents, nSamples),ones(nEvents,1), nSamples);
+C = mat2cell(NaN(nEvents, nSamples),ones(nEvents,1), nSamples);
 events = deal(struct('name', '', 'detectionFunc', [],...
     'index', C, 'values', C, 'times', C));
 
-%% Onset detection
-% Initialize event points and times
+%% Elongation onset detection
 events(1).name = 'Spindle elongation onset';
 events(1).detectionFunc = @(x) max(1, find(x > minSpindleLength, 1, 'first')-1);
 log = sprintf('Finding last events where value exceeds %g\n', minSpindleLength);
@@ -62,7 +63,6 @@ for i = 1:nSamples
 end
 
 %% Maximum elongation
-% Initialize event points and times
 events(2).name = 'Maximum spindle elongation';
 events(2).detectionFunc = @(x) max(x);
 log = [log sprintf('Finding maximum events\n')];
@@ -70,4 +70,14 @@ log = [log sprintf('Finding maximum events\n')];
 % Detect events for each time-series (values above threshold)
 for i = 1:nSamples
     [events(2).values(i), events(2).index(i)] = events(2).detectionFunc(data(:,i));
+end
+
+%% Event times
+for i = 1:nEvents
+    for j = 1:nSamples
+        events(i).times(j) = times(events(i).index(j));
+    end
+    % Read event times
+    log = [log sprintf([events(i).name ' mean time: %g +/- %g\n'], ...
+        mean(events(i).times), std(events(i).times,[],2))];
 end

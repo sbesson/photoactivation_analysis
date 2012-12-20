@@ -7,15 +7,15 @@ function alignedData = alignData(data, index)
 % series
 %
 % INPUT
-%       data - a n x m matrix containing the time-series
+%       data - a nTimepoints x nSamples matrix containing the time-series
 %
-%       index - a 1 x m
+%       index - a 1 x nSamples array of indexes to align th data
 %
 % OUTPUT
-%      aligneData - a 2n x m matrix
+%      aligneData - a 2nTimepoints x nSamples matrix
 
 
-% Sebastien Besson Nov 2012
+% Sebastien Besson Nov 2012 (last modified Dec 2012)
 
 % Input check
 ip = inputParser;

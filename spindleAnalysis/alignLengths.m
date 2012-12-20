@@ -96,10 +96,7 @@ for iCondition = 1:nConditions
         
         
         %% Detect events
-        [events, eventlog] = detectEvents(data, minSpindleLength);
-        seriesLog{iSeries} = [seriesLog{iSeries} eventlog sprintf('\n')];
-        
-        [events, eventlog] = getEventTimes(events, times);
+        [events, eventlog] = detectEvents(data, times, minSpindleLength);
         seriesLog{iSeries} = [seriesLog{iSeries} eventlog sprintf('\n')];
         
         conditions(iCondition).series(iSeries).events = events;
@@ -113,7 +110,7 @@ for iCondition = 1:nConditions
         
         %% Align data
         seriesLog{iSeries} = [seriesLog{iSeries} ...
-            'Aligning data with respect using ' events(1).name sprintf('\n')];
+            'Aligning data using ' events(1).name sprintf('\n')];
         alignedData = alignData(data, events(1).index);
         alignedTimes = (-nTimePoints+1:nTimePoints) * 10;
         conditions(iCondition).series(iSeries).alignedData = alignedData;
