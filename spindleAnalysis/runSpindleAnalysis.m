@@ -3,8 +3,8 @@ clc
 close all
 
 % Define constants
-%dataPath = uigetdir('Select the main directory');
-dataPath = '/Users/sebastien/Desktop/Bipolar spindle assembly assay';
+dataPath = uigetdir('Select the main directory');
+% dataPath = '/Users/sebastien/Desktop/Bipolar spindle assembly assay';
 if isequal(dataPath, 0), return; end
 
 % Read conditions from folder names
