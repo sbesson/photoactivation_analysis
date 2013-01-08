@@ -64,7 +64,8 @@ for iCondition = 1:nConditions
         % Extract first column (time points)
         times = data(:,1);
         dt = unique(diff(times));
-        assert(isscalar(dt), 'Times not evenly spaces');
+        assert(isscalar(dt), 'File %s, worskheet %s: Times not evenly spaces', ...
+            xlsfile, series{iSeries});
         conditions(iCondition).series(iSeries).times = times;
         data(:,1)=[];
         data(:,all(isnan(data),1))=[];
