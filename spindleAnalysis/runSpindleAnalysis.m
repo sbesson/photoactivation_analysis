@@ -158,6 +158,13 @@ for iCondition = 1:nConditions
     conditions(iCondition).alignedTimes = alignedTimes;
     conditions(iCondition).alignedData = alignedData;
     
+    % Plot aligned data
+    figure;
+    plotIndividualSeries(alignedTimes, alignedData);
+    print(gcf,'-dtiff',fullfile(conditionPath,...
+        [conditions(iCondition).name '-aligneddata.tif']));
+    close(gcf)
+    
     % Set summary figure options
     conditionFig = figure();
     plotMeanAlignedData(conditions(iCondition).series)
