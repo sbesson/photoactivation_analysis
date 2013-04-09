@@ -112,8 +112,8 @@ for iCondition = 1:nConditions
         % Plot indidividual events
         figure;
         plotIndividualSeries(times, data, events);
-        print(gcf,'-dtiff',fullfile(conditionPath,...
-            [conditions(iCondition).name '-' series{iSeries} '-events.tif']));
+        exportFigure(gcf, conditionPath,....
+            [conditions(iCondition).name '-' series{iSeries} '-events']);
         close(gcf)
         
         %% Measure elongation rates
@@ -132,8 +132,8 @@ for iCondition = 1:nConditions
         % Plot aligned data
         figure;
         plotIndividualSeries(alignedTimes, alignedData);
-        print(gcf,'-dtiff',fullfile(conditionPath,...
-            [conditions(iCondition).name '-' series{iSeries} '-aligneddata.tif']));
+        exportFigure(gcf, conditionPath,...
+            [conditions(iCondition).name '-' series{iSeries} '-aligneddata']);
         close(gcf)
     end
     
@@ -148,7 +148,7 @@ for iCondition = 1:nConditions
         figure;
         plotBarGraphs({conditions(iCondition).series.(graph_map{iGraph, 1})},...
             {conditions(iCondition).series.name}, graph_map{iGraph, 2});
-        print(gcf,'-dtiff',fullfile(conditionPath, [graph_map{iGraph, 1} '.tif']));
+        exportFigure(gcf, conditionPath, graph_map{iGraph, 1});
         close(gcf);
     end
     
@@ -161,8 +161,8 @@ for iCondition = 1:nConditions
     % Plot aligned data
     figure;
     plotIndividualSeries(alignedTimes, alignedData);
-    print(gcf,'-dtiff',fullfile(conditionPath,...
-        [conditions(iCondition).name '-aligneddata.tif']));
+    exportFigure(gcf, conditionPath,...
+        [conditions(iCondition).name '-aligneddata']);
     close(gcf)
     
     % Set summary figure options
@@ -170,7 +170,7 @@ for iCondition = 1:nConditions
     plotMeanAlignedData(conditions(iCondition).series)
     xlim = get(gca, 'XLim');
     plot([xlim(1) xlim(2)], [minSpindleLength minSpindleLength] ,'--k');
-    print(gcf,'-dtiff',fullfile(conditionPath, 'AlignedData.tif'));
+    exportFigure(gcf, conditionPath, 'AlignedData');
     close(conditionFig);   
 
     % Display and save full log
@@ -189,22 +189,22 @@ for iGraph = 1 : nGraphs
     figure;
     plotBarGraphs({conditions.(graph_map{iGraph, 1})},...
         {conditions.name}, graph_map{iGraph, 2});
-    print(gcf,'-dtiff',fullfile(dataPath, [graph_map{iGraph, 1} '.tif']));
+    exportFigure(gcf, dataPath, graph_map{iGraph, 1});
     close(gcf);
 end
 
 % Generated all conditions comparison
 allConditionsFig = figure();
 plotMeanAlignedData(conditions)
-print(gcf,'-dtiff',fullfile(dataPath, 'All conditions.tif'));
+exportFigure(gcf, dataPath, 'All conditions');
 
 % Generate 2 by 2 graph comparisons
 for i = 1 : nConditions
     for j = 1 : i -1
         conditionFig = figure();
         plotMeanAlignedData(conditions([i,j]))
-        print(gcf,'-dtiff',fullfile(dataPath, [conditions(i).name ...
-            '-' conditions(j).name '.tif']));
+        exportFigure(gcf, dataPath, [conditions(i).name ...
+            '-' conditions(j).name]);
         close(conditionFig);
     end
 end
