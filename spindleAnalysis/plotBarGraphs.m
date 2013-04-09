@@ -22,4 +22,4 @@ std = cellfun(@(x)nanstd(x,[],2), data);
 nPoints = cellfun(@numel, data);
 ste = std./sqrt(nPoints);
 
-barplot2(means, ste, 'XLabels',names, 'YLabel', ylabel);
+barplot2(means, ste, 'XTickLabel',names, 'YLabel', ylabel);

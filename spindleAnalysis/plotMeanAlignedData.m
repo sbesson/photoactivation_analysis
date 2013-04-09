@@ -49,7 +49,7 @@ end
 set(gca, 'LineWidth', 1.5, ip.Results.sfont{:}, 'Layer', 'top');
 xlabel('Time (min)', ip.Results.lfont{:});
 ylabel('Spindle length (\mum)', ip.Results.lfont{:});
-xlim([tmin tmax]);
+if ~isempty(tmin), xlim([tmin tmax]); end
 legend({s.name},'Location', 'NorthWest','Interpreter','None')
 set(gca,'LooseInset',get(gca,'TightInset'));
 box on

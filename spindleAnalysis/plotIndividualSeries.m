@@ -34,5 +34,4 @@ for i = 1 : nEvents
     plot(events(i).times, events(i).values, 'k',...
         'Marker', markers(i), 'MarkerFaceColor', 'k');
 end
-legend({events.name},ip.Results.tfont{:})
-;
+legend({events.name},ip.Results.tfont{:});
