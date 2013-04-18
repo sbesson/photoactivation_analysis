@@ -69,14 +69,14 @@ end
 
 %% Maximum elongation
 events(3).name = 'Spindle elongation at 10 min';
-events(3).detectionFunc = @(x) max(x);
 log = [log sprintf('Finding maximum events\n')];
 
 % Detect events for each time-series (values above threshold)
 events(3).index = min(events(1).index + 2, nTimePoints);
-validEvents = ~isnan(events(3).index);
-events(3).values(validEvents) =  data(events(3).index(validEvents));
-events(3).values(~validEvents) = NaN;
+events(3).values = NaN(1, nSamples);
+for i = find(~isnan(events(3).index))
+    events(3).values(i) =  data(events(3).index(i), i);
+end
 
 %% Event times
 for i = 1:numel(events)
