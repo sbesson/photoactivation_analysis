@@ -117,9 +117,9 @@ for iCondition = 1:nConditions
         close(gcf)
         
         %% Measure elongation rates
-        elongationRate = @(x) diff(vertcat(x.events.values),1)./diff(vertcat(x.events.times),1);
+        elongationRate = @(x) (x(3).values- x(1).values)./(x(3).times- x(1).times);
         conditions(iCondition).series(iSeries).elongationRate = ...
-            elongationRate(conditions(iCondition).series(iSeries));
+            elongationRate(conditions(iCondition).series(iSeries).events);
         
         %% Align data
         seriesLog{iSeries} = [seriesLog{iSeries} ...
@@ -146,7 +146,7 @@ for iCondition = 1:nConditions
         
         % Plot summary bar graphs
         figure;
-        plotBarGraphs({conditions(iCondition).series.(graph_map{iGraph, 1})},...
+        plotBoxPlots({conditions(iCondition).series.(graph_map{iGraph, 1})},...
             {conditions(iCondition).series.name}, graph_map{iGraph, 2});
         exportFigure(gcf, conditionPath, graph_map{iGraph, 1});
         close(gcf);
@@ -187,7 +187,7 @@ save(fullfile(dataPath, 'analysis.mat'), 'conditions');
 
 for iGraph = 1 : nGraphs
     figure;
-    plotBarGraphs({conditions.(graph_map{iGraph, 1})},...
+    plotBoxPlots({conditions.(graph_map{iGraph, 1})},...
         {conditions.name}, graph_map{iGraph, 2});
     exportFigure(gcf, dataPath, graph_map{iGraph, 1});
     close(gcf);
