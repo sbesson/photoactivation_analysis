@@ -27,7 +27,7 @@ function [events, log] = detectEvents(data,times, minSpindleLength)
 %
 %      log - a string containing the log of the event detection function
 
-% Sebastien Besson Dec 2012
+% Sebastien Besson Dec 2012 (last modified Apr 2013)
 
 % Input check
 ip = inputParser;
@@ -40,11 +40,8 @@ ip.parse(data, times, minSpindleLength);
 
 %% Initialize output structure array
 
-nEvents = 2;
-
-C = mat2cell(NaN(nEvents, nSamples),ones(nEvents,1), nSamples);
 events = deal(struct('name', '', 'detectionFunc', [],...
-    'index', C, 'values', C, 'times', C));
+    'index', NaN(1, nSamples), 'values', NaN(1, nSamples), 'times', NaN(1, nSamples)));
 
 %% Elongation onset detection
 events(1).name = 'Spindle elongation onset';
@@ -56,10 +53,8 @@ for i = 1:nSamples
     index = events(1).detectionFunc(data(:,i));
     if ~isempty(index)
         events(1).index(i) = index;
-    else
-        events(1).index(i) = nTimePoints/2;
+        events(1).values(i) = data(events(1).index(i), i);
     end
-    events(1).values(i) = data(events(1).index(i), i);
 end
 
 %% Maximum elongation
@@ -72,11 +67,22 @@ for i = 1:nSamples
     [events(2).values(i), events(2).index(i)] = events(2).detectionFunc(data(:,i));
 end
 
+%% Maximum elongation
+events(3).name = 'Spindle elongation at 10 min';
+events(3).detectionFunc = @(x) max(x);
+log = [log sprintf('Finding maximum events\n')];
+
+% Detect events for each time-series (values above threshold)
+events(3).index = min(events(1).index + 2, nTimePoints);
+validEvents = ~isnan(events(3).index);
+events(3).values(validEvents) =  data(events(3).index(validEvents));
+events(3).values(~validEvents) = NaN;
+
 %% Event times
-for i = 1:nEvents
-    for j = 1:nSamples
-        events(i).times(j) = times(events(i).index(j));
-    end
+for i = 1:numel(events)
+    validEvents = ~isnan(events(i).index);
+    events(i).times(validEvents) = times(events(i).index(validEvents));
+    events(i).times(~validEvents) = NaN;
     % Read event times
     log = [log sprintf([events(i).name ' mean time: %g +/- %g\n'], ...
         mean(events(i).times), std(events(i).times,[],2))];

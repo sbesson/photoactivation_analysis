@@ -15,7 +15,7 @@ function alignedData = alignData(data, index)
 %      aligneData - a 2nTimepoints x nSamples matrix
 
 
-% Sebastien Besson Nov 2012 (last modified Dec 2012)
+% Sebastien Besson Nov 2012 (last modified Apr 2012)
 
 % Input check
 ip = inputParser;
@@ -26,10 +26,13 @@ ip.parse(data, index);
 
 %% Data alignment
 nTimePoints = size(data, 1);
-nSamples = size(data, 2);
+validIndex = find(~isnan(index));
+nSamples = numel(validIndex);
 
 % Create matrix of size 2n x m
 alignedData = NaN(2*nTimePoints, nSamples);
-for i=1:nSamples
-    alignedData(nTimePoints - index(i) + 1: 2* nTimePoints - index(i),i) =  data(:,i);
+for i = 1 : nSamples
+    tmin = nTimePoints - index(validIndex(i)) + 1;
+    tmax = 2 * nTimePoints - index(validIndex(i));
+    alignedData(tmin : tmax, i) =  data(:,i);
 end
