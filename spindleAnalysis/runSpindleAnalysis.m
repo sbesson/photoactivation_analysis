@@ -49,7 +49,7 @@ for iCondition = 1:nConditions
     fileLog{iCondition} = [fileLog{iCondition}...
         sprintf('Found %g worskheets\n', nSeries)];
     seriesLog = cell(nSeries, 1);
-
+    
     for iSeries = 1 : nSeries
         %% Read raw data
         [data, str] = xlsread(xlsfile, series{iSeries});
@@ -102,7 +102,7 @@ for iCondition = 1:nConditions
         nSamples = size(data,2);
         log1 = sprintf('Number of timepoints: %g\n', nTimePoints);
         log2 = sprintf('Number of samples: %g\n', nSamples);
-        seriesLog{iSeries} = [seriesLog{iSeries} log1 log2]; 
+        seriesLog{iSeries} = [seriesLog{iSeries} log1 log2];
         
         %% Detect events
         [events, eventlog] = detectEvents(data, times, minSpindleLength);
@@ -110,7 +110,7 @@ for iCondition = 1:nConditions
         
         conditions(iCondition).series(iSeries).events = events;
         
-
+        
         
         %% Measure elongation rates
         elongationRate = @(x) (x(3).values- x(1).values)./(x(3).times- x(1).times);
@@ -125,7 +125,7 @@ for iCondition = 1:nConditions
         conditions(iCondition).series(iSeries).alignedData = alignedData;
         conditions(iCondition).series(iSeries).alignedTimes  = alignedTimes;
         
-
+        
     end
     
     %% Create comparative graphs per condition
@@ -142,7 +142,7 @@ for iCondition = 1:nConditions
     conditions(iCondition).alignedTimes = alignedTimes;
     conditions(iCondition).alignedData = alignedData;
     
-
+    
     % Display and save full log
     disp([fileLog{iCondition} seriesLog{:}])
     fid = fopen(fullfile(conditionPath, 'Summary-log.txt'), 'w');
@@ -153,14 +153,24 @@ end
 % Save output
 save(fullfile(dataPath, 'analysis.mat'), 'conditions');
 
+
+%% Graphic properties
+conditionNames = {conditions.name};
+% Conditions to be plotted, set to 1 : numel(conditions) to plot all graphs
+conditions2plot = [3 4 8];
+% Maximum value of the spindle length
+ymax = 20;
+disp(sprintf('Generating graph for %s\n', conditionNames{conditions2plot}))
+
 %% Plot individual series/event
 rawFig = figure;
-for iCondition = 1 : nConditions
-
+for iCondition = conditions2plot
+    
     for iSeries = 1 : numel(conditions(iCondition).series)
         % Plot aligned data
         plotIndividualSeries(conditions(iCondition).series(iSeries).alignedTimes,...
             conditions(iCondition).series(iSeries).alignedData);
+        if ~isempty(ymax), ylim([0 ymax]); end
         exportFigure(rawFig, conditions(iCondition).path,...
             [conditions(iCondition).name '-'...
             conditions(iCondition).series(iSeries).name '-aligneddata']);
@@ -170,6 +180,7 @@ for iCondition = 1 : nConditions
         plotIndividualSeries(conditions(iCondition).series(iSeries).times,...
             conditions(iCondition).series(iSeries).data,...
             conditions(iCondition).series(iSeries).events);
+        if ~isempty(ymax), ylim([0 ymax]); end
         exportFigure(rawFig, conditions(iCondition).path,....
             [conditions(iCondition).name '-'...
             conditions(iCondition).series(iSeries).name '-events']);
@@ -179,6 +190,7 @@ for iCondition = 1 : nConditions
     % Plot aligned data per condition
     plotIndividualSeries(conditions(iCondition).alignedTimes,...
         conditions(iCondition).alignedData);
+    if ~isempty(ymax), ylim([0 ymax]); end
     exportFigure(rawFig, conditions(iCondition).path,...
         [conditions(iCondition).name '-aligneddata']);
     clf(rawFig)
@@ -187,22 +199,23 @@ for iCondition = 1 : nConditions
     plotMeanAlignedData(conditions(iCondition).series)
     xlim = get(gca, 'XLim');
     plot([xlim(1) xlim(2)], [minSpindleLength minSpindleLength] ,'--k');
+    if ~isempty(ymax), ylim([0 ymax]); end
     exportFigure(rawFig, conditions(iCondition).path, 'AlignedData');
     clf(rawFig)
 end
 close(rawFig)
-    
+
 %% Generate comparative graphs between conditions
 conditionFig = figure;
 for iGraph = 1 : nGraphs
-    for iCondition = 1 : nConditions
+    for iCondition = conditions2plot
         % Plot summary bar graphs
         plotBoxPlots({conditions(iCondition).series.(graph_map{iGraph, 1})},...
             {conditions(iCondition).series.name}, graph_map{iGraph, 2});
         exportFigure(conditionFig, conditions(iCondition).path, graph_map{iGraph, 1});
         clf(conditionFig);
     end
-        
+    
     plotBoxPlots({conditions.(graph_map{iGraph, 1})},...
         {conditions.name}, graph_map{iGraph, 2});
     exportFigure(conditionFig, dataPath, graph_map{iGraph, 1});
@@ -210,17 +223,17 @@ for iGraph = 1 : nGraphs
 end
 
 % Generated all conditions comparison
-plotMeanAlignedData(conditions)
+plotMeanAlignedData(conditions(conditions2plot))
 exportFigure(conditionFig, dataPath, 'All conditions');
 clf(conditionFig);
 
-% Generate 2 by 2 graph comparisons
-for i = 1 : nConditions
-    for j = 1 : i -1
-        plotMeanAlignedData(conditions([i,j]))
-        exportFigure(conditionFig, dataPath, [conditions(i).name ...
-            '-' conditions(j).name]);
-        clf(conditionFig);
-    end
-end
-close(conditionFig);
+% % Generate 2 by 2 graph comparisons
+% for i = conditions2plot
+%     for j = 1 : i -1
+%         plotMeanAlignedData(conditions([i,j]))
+%         exportFigure(conditionFig, dataPath, [conditions(i).name ...
+%             '-' conditions(j).name]);
+%         clf(conditionFig);
+%     end
+% end
+% close(conditionFig);
