@@ -23,7 +23,7 @@ imax = min(find(nanData, 1, 'last'), size(data, 1));
 xlim([times(imin) times(imax)]);
 set(gca, 'LineWidth', 1.5, ip.Results.sfont{:}, 'Layer', 'top');
 xlabel('Time (min)', ip.Results.lfont{:});
-ylabel('Spindle length (\mum)', ip.Results.lfont{:})
+ylabel('Spindle length (um)', ip.Results.lfont{:})
 
 if isempty(ip.Results.events), return; end
 events = ip.Results.events;

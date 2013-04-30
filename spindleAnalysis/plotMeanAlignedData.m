@@ -48,7 +48,7 @@ end
 % Set axes properties
 set(gca, 'LineWidth', 1.5, ip.Results.sfont{:}, 'Layer', 'top');
 xlabel('Time (min)', ip.Results.lfont{:});
-ylabel('Spindle length (\mum)', ip.Results.lfont{:});
+ylabel('Spindle length (um)', ip.Results.lfont{:});
 if ~isempty(tmin), xlim([tmin tmax]); end
 legend({s.name},'Location', 'NorthWest','Interpreter','None')
 set(gca,'LooseInset',get(gca,'TightInset'));

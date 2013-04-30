@@ -157,9 +157,9 @@ save(fullfile(dataPath, 'analysis.mat'), 'conditions');
 %% Graphic properties
 conditionNames = {conditions.name};
 % Conditions to be plotted, set to 1 : numel(conditions) to plot all graphs
-conditions2plot = [3 4 8];
+conditions2plot = [1 3 5 6 7 8 9 10 12 13 14 15 11];
 % Maximum value of the spindle length
-ymax = 20;
+ymax = 18;
 disp(sprintf('Generating graph for %s\n', conditionNames{conditions2plot}))
 
 %% Plot individual series/event
@@ -216,8 +216,8 @@ for iGraph = 1 : nGraphs
         clf(conditionFig);
     end
     
-    plotBoxPlots({conditions.(graph_map{iGraph, 1})},...
-        {conditions.name}, graph_map{iGraph, 2});
+    plotBoxPlots({conditions(conditions2plot).(graph_map{iGraph, 1})},...
+        {conditions(conditions2plot).name}, graph_map{iGraph, 2});
     exportFigure(conditionFig, dataPath, graph_map{iGraph, 1});
     clf(conditionFig);
 end
