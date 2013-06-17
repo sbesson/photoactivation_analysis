@@ -1,32 +1,107 @@
-%%
-
+configFile = '~/Documents/MATLAB/sce_ice.config';
+datasetId = 1101;
+groupName = 'Rape project';
 cacheDir = '/Users/sebastien/Documents/Julie/Photoactivation';
-load(fullfile(cacheDir, 'data.mat'));
+namespace = 'photoactivation';
 
-hasPoints = ~cellfun(@isempty, {data.points});
-data(~hasPoints) = [];
-
-
-%%
 % define small and large fonts for graphical output
 tfont = {'FontName', 'Helvetica', 'FontSize', 14, 'FontAngle', 'italic'};
 sfont = {'FontName', 'Helvetica', 'FontSize', 18};
 lfont = {'FontName', 'Helvetica', 'FontSize', 22};
 
-%% Define fitting function for intensity turnover
-fitFun = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x));     %Double-exponential function for fitting
+%Double-exponential function for fitting
+fitFun = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x));     
 bInit = [.8 -.1 .2 -0.01];
 
 fitOptions = statset('Robust','on','MaxIter',500,'Display','off');
+%% OMERO.matlab initialization
+
+% Create client/session
+[client, session] = loadOmero(configFile);
+fprintf(1, 'Created connection to %s\n', char(client.getProperty('omero.host')));
+fprintf(1, 'Created session for user %s using group %s\n',...
+    char(session.getAdminService().getEventContext().userName),...
+    char(session.getAdminService().getEventContext().groupName));
+
+% Change group
+disp('Changing group')
+group = session.getAdminService.lookupGroup(groupName);
+session.setSecurityContext(group);
+
+%% Read images
+
+% Load dataset
+fprintf(1,'Loading dataset %g\n', datasetId);
+dataset = getDatasets(session, datasetId);
+datasetname = char(dataset.getName().getValue());
+
+% Retrieve list of images
+images = toMatlabList(dataset.linkedImageList);
+imageIds = arrayfun(@(x) x.getId().getValue(), images);
+fprintf(1,'Found %g images in dataset %s\n', numel(imageIds), datasetname);
+
+%% Read rois
+roiService = session.getRoiService();
+nImages = numel(imageIds);
+
+clear data
+data(nImages, 1) = struct('id',[],'boxes', [], 'points', []);
+for iImage = 1 : nImages
+    % Read image properties
+    data(iImage).id = images(iImage).getId().getValue();
+    data(iImage).name = char(images(iImage).getName().getValue());
+    fprintf(1,'Reading image %g\n', data(iImage).id);
+    
+    % Read ROIs attached to the image
+    roiResult = roiService.findByImage(data(iImage).id, []);
+    if isempty(roiResult.rois), continue; end
+    
+    allRois = toMatlabList(roiResult.rois);
+    nRois = numel(allRois);
+    
+    if nRois < 2, continue; end
+    
+    for iRoi = 1 : nRois
+        % Only store ROIs containing rectangles
+        shapes = allRois(iRoi).copyShapes;
+        if isa(shapes.get(0), 'omero.model.RectI')
+            iBox = numel(data(iImage).boxes)+1;
+            shapes = toMatlabList(shapes);
+            data(iImage).boxes(iBox).times = arrayfun(@(x) x.getTheT.getValue, shapes);
+            data(iImage).boxes(iBox).x = arrayfun(@(x) x.getX().getValue, shapes);
+            data(iImage).boxes(iBox).y = arrayfun(@(x) x.getY().getValue, shapes);
+            data(iImage).boxes(iBox).width = arrayfun(@(x) x.getWidth().getValue, shapes);
+            data(iImage).boxes(iBox).height = arrayfun(@(x) x.getHeight().getValue, shapes);
+        elseif isa(shapes.get(0), 'omero.model.PointI')
+            iPoint = numel(data(iImage).points)+1;
+            shapes = toMatlabList(shapes);
+            data(iImage).points(iPoint).times = arrayfun(@(x) x.getTheT.getValue, shapes);
+            data(iImage).points(iPoint).x = arrayfun(@(x) x.getCx().getValue, shapes);
+            data(iImage).points(iPoint).y = arrayfun(@(x) x.getCy().getValue, shapes);
+        end
+    end
+    
+    % Filter valid rois with no shapes
+    fprintf(1,'Found %g rectangle ROIs and %g point ROIs \n',...
+        numel(data(iImage).boxes),numel(data(iImage).points));
+
+end
+
+% Filter data with no ROI
+% hasBoxes = ~cellfun(@isempty, {data.boxes});
+% hasPoints = ~cellfun(@isempty, {data.points});
+has2Centrosomes = arrayfun(@(x) numel(x.points), data)==2;
+data = data(has2Centrosomes);
+
 %% Read image conten
 
 iChan = 0;
 msg = 'Reading images %g/%g';
-hWaitbar=waitbar(0, sprintf(msg, 1, numel(data)));
+hWaitbar = waitbar(0, sprintf(msg, 1, numel(data)));
 close all
 
 for i = 1:numel(data)
-    fprintf(1,'Reading intensity from image %g:%s\n', data(i).id,...
+    fprintf(1, 'Reading intensity from image %g:%s\n', data(i).id,...
         data(i).name);
     
     cacheImage = fullfile(cacheDir, [num2str(data(i).id) '.ome.tiff']);
@@ -34,10 +109,8 @@ for i = 1:numel(data)
     if hasCacheImage
         fprintf(1,'using cache image at %s\n', cacheImage);
         r = bfGetReader(cacheImage);
-        
-        % Calculating min point (Radon transform
-        x0 =  floor((r.getSizeX() + 1) / 2);
-        y0 =  floor((r.getSizeY() + 1) / 2);
+        sizeX = r.getSizeX();
+        sizeY = r.getSizeY();
         
         % Read metadata
         store = r.getMetadataStore();
@@ -48,8 +121,21 @@ for i = 1:numel(data)
         outputDir = fullfile(cacheDir, num2str(data(i).id));
         if ~isdir(outputDir), mkdir(outputDir); end
     else
+        image = getImages(session, data(i).id);
+        
+        sizeX = image.getPrimaryPixels.getSizeX.getValue;
+        sizeY = image.getPrimaryPixels.getSizeY.getValue;
+        pixelSize =  image.getPrimaryPixels.getPhysicalSizeX().getValue();
+        dT = image.getPrimaryPixels.getTimeIncrement.getValue();
+        
+        outputDir = fullfile(getenv('HOME'), 'omero', num2str(data(i).id));
+        if ~isdir(outputDir), mkdir(outputDir); end
         disp('using OMERO.matlab');
     end
+    
+    % Calculating min point (Radon transform
+    x0 =  floor((sizeX + 1) / 2);
+    y0 =  floor((sizeY + 1) / 2);
     
     % Read rois and times bounds
     points = data(i).points;
@@ -96,7 +182,7 @@ for i = 1:numel(data)
             iPlane = loci.formats.FormatTools.getIndex(r, 0, iChan, t);
             I = double(bfGetPlane(r, iPlane + 1));
         else
-            I = double(getPlane(s, data(i).id, 0, iChan, t-1));
+            I = double(getPlane(session, data(i).id, 0, iChan, t));
         end
         
         
@@ -108,17 +194,18 @@ for i = 1:numel(data)
         plot(x, R, 'Color', color);
         
         % Calculating background
-        mask = bwareaopen(filterGauss2D(I,1)>50,20);
-        threshold = thresholdRosin(I(mask));
+        Ifilt= filterGauss2D(I,5);
+        mask = bwareaopen(Ifilt>50, 20);
+        threshold = thresholdRosin(Ifilt(mask));
         for iBox = 1: numel(boxes)
             xrange = boxes(iBox).x:boxes(iBox).x + boxes(iBox).width;
             yrange = boxes(iBox).y:boxes(iBox).y + boxes(iBox).height;
             Icrop = I(yrange, xrange);
             Ibox(iT, iBox) = mean(Icrop(:));
         end
-        Ibkg(iT) = min(Ibox(iT, :));
-        mean(I(mask & I < threshold));
-        Ibkg(iT) = mean(I(mask & I < threshold));
+%         Ibkg(iT) = min(Ibox(iT, :));
+%         mean(I(mask & I < threshold));
+        Ibkg(iT) = mean(I(mask & Ifilt < threshold));
         I0=I;
         I0(mask) = Ibkg(iT);
         [Rbg, xbg] = radon(I0,-alpha(iT));
@@ -134,21 +221,13 @@ for i = 1:numel(data)
         plot(d, dR, 'Color', color);
         xlim([0 max(d_centrosomes)])
         
-        % Interpolate maximum
-        %         [~, imax] = max(dR);
-        %         coeff=polyfit(d(imax-7:imax+7), dR(imax-7:imax+7),2);
-        %         dmax(iT) = - coeff(2)/(2*coeff(1));
-        %         dRmax(iT) =  coeff(1) * dmax(iT)^2  + coeff(2) *dmax(iT) + coeff(3);
-        %         plot(dmax(iT), dRmax(iT), 'o', 'Color', color, 'MarkerFaceColor', color);
-        %         [p, dp] = fitGaussian1D(x, dR, [-50 10e4 20 1]);
-        %         A(iT)=p(2);
-        %         dA(iT)=dp(2);
-        
         % Integrate intensity
+        [~, imax] = max(dR);
+        xrange = imax-20:imax+20;
+        
         figure;
-        xrange = (x>=P(iT, 1) & x<=2*P(iT, 2)/3);
-        [p, dp] = fitGaussian1D(d(xrange), dR(xrange), [50 max(dR(xrange)) 20 1],'xAsc');
-        plot(d(xrange), dR(xrange),'ok');
+        [p, dp] = fitGaussian1D(d(xrange), dR(xrange), [50 max(dR(xrange)) 20 0],'xAs');
+        plot(d, dR,'ok');
         yfit =  exp(-(d(xrange)-p(1)).^2./(2*p(3)^2))*p(2) + p(4);
         hold on
         plot(d(xrange), yfit,'-k');
@@ -175,7 +254,9 @@ for i = 1:numel(data)
     ylabel('Relative position (microns)', lfont{:});
     print(gcf, '-dpng', fullfile(outputDir, 'BandPosition.png'));
     fprintf(1, 'Band speed: %g microns/min\n', abs(coeff(1)) * 60);
+    close(gcf);
     
+    data(i).speed = coeff(1);
 
     %Fit function to ratio timeseries
     [bFit,resFit,jacFit,covFit,mseFit] = nlinfit(times*dT,It/It(1),fitFun,bInit,fitOptions);
@@ -199,9 +280,3 @@ for i = 1:numel(data)
     %     waitbar(i/numel(data), hWaitbar, sprintf(msg, i+1, numel(data)));
 end
 % close(hWaitbar)
-%%
-
-figure;
-plot(A/A(1));
-hold on
-plot(fitValues,'--r');
