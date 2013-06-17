@@ -13,7 +13,11 @@ tfont = {'FontName', 'Helvetica', 'FontSize', 14, 'FontAngle', 'italic'};
 sfont = {'FontName', 'Helvetica', 'FontSize', 18};
 lfont = {'FontName', 'Helvetica', 'FontSize', 22};
 
+%% Define fitting function for intensity turnover
+fitFun = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x));     %Double-exponential function for fitting
+bInit = [.8 -.1 .2 -0.01];
 
+fitOptions = statset('Robust','on','MaxIter',500,'Display','off');
 %% Read image conten
 
 iChan = 0;
@@ -159,11 +163,12 @@ for i = 1:numel(data)
     
     print(f1, '-dpng', fullfile(outputDir, 'Projections.png'));
     
-    figure;
-    plot(times * dT, dmax * pixelSize, 'o');
-    coeff = polyfit((times + 1) * dT, dmax * pixelSize, 1);
+    % Plot band position
+    figure
+    plot(times * dT, (dmax-dmax(1)) * pixelSize, 'ok');
+    coeff = polyfit((times + 1) * dT, (dmax-dmax(1)) * pixelSize, 1);
     hold on
-    plot(times * dT, coeff(1) * (times + 1) * dT + coeff(2), '--');
+    plot(times * dT, coeff(1) * (times + 1) * dT + coeff(2), '--k');
     box on
     set(gca, 'LineWidth', 1.5, sfont{:}, 'Layer', 'top');
     xlabel('Time (s)', lfont{:});
@@ -171,10 +176,8 @@ for i = 1:numel(data)
     print(gcf, '-dpng', fullfile(outputDir, 'BandPosition.png'));
     fprintf(1, 'Band speed: %g microns/min\n', abs(coeff(1)) * 60);
     
-    fitFun = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x));     %Double-exponential function for fitting
-    bInit = [.8 -.1 .2 -0.01];
+
     %Fit function to ratio timeseries
-    fitOptions = statset('Robust','on','MaxIter',500,'Display','off');
     [bFit,resFit,jacFit,covFit,mseFit] = nlinfit(times*dT,It/It(1),fitFun,bInit,fitOptions);
     %Get confidence intervals of fit and fit values
     [fitValues,deltaFit] = nlpredci(fitFun,times*dT,bFit,resFit,'covar',covFit,'mse',mseFit);
@@ -187,6 +190,8 @@ for i = 1:numel(data)
     set(gca, 'LineWidth', 1.5, sfont{:}, 'Layer', 'top');
     xlabel('Time (s)', lfont{:});
     ylabel('Integrated intensity', lfont{:});
+    limits = ylim();
+    ylim([0 limits(2)]);
     print(gcf, '-dpng', fullfile(outputDir, 'Intensity.png'));
     fprintf(1, 'Turnover time: %g s\n', -1/bFit(2));
     
