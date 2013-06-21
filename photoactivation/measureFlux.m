@@ -1,5 +1,5 @@
 configFile = '~/Documents/MATLAB/sce_ice.config';
-datasetId = 1103;
+datasetId = 1101;
 invalidIds = [3421,3460];
 groupName = 'Rape project';
 cacheDir = '/Users/sebastien/Documents/Julie/Photoactivation';
@@ -244,19 +244,7 @@ for i = 1:numel(data)
         plot(dmax(iT), p(2) + p(4), 'o', 'Color', color, 'MarkerFaceColor', color);
     end
     
-    % Save projections locally
-    profilesPath = fullfile(outputDir, 'Profiles.eps');
-    print(profilesFig, '-depsc', profilesPath);
-    
-     % Save projections onto the server
-    profiles_ns = [ns '_profiles'];
-    fa = getImageFileAnnotations(session, data(i).id, 'include', profiles_ns);
-    if isempty(fa),
-        fa = writeFileAnnotation(session, profilesPath, 'namespace', profiles_ns);
-        linkAnnotation(session, fa, 'image', data(i).id);
-    else
-        updateFileAnnotation(session, fa, profilesPath);
-    end
+    saveAndUploadEPS(profilesFig, outputDir, 'Profiles', session, data(i).id, [ns '_profiles'])
     
     % Plot band position
     fluxFig = figure;
@@ -270,23 +258,11 @@ for i = 1:numel(data)
     ylabel('Relative position (microns)', lfont{:});
     
     % Save flux results locally
-    fluxPath = fullfile(outputDir, 'Flux.eps');
-    print(fluxFig, '-deps2', fluxPath);
-    close(fluxFig);
-
-    % Save flux results onto the server
-    flux_ns = [ns '_flux'];
-    fa = getImageFileAnnotations(session, data(i).id, 'include', flux_ns);
-    if isempty(fa),
-        fa = writeFileAnnotation(session, fluxPath, 'namespace', flux_ns);
-        linkAnnotation(session, fa, 'image', data(i).id);
-    else
-        updateFileAnnotation(session, fa, fluxPath);
-    end
+    saveAndUploadEPS(fluxFig, outputDir, 'Flux', session, data(i).id, [ns '_flux'])
     
     % Print flux data
     fprintf(1, 'Band speed: %g microns/min\n', abs(coeff(1)) * 60);
-    data(i).speed = coeff(1) *60;
+    data(i).speed = abs(coeff(1)) *60;
 
     %Fit function to ratio timeseries
     [bFit,resFit,jacFit,covFit,mseFit] = nlinfit(times*dT,It/It(1),fitFun,bInit,fitOptions);
@@ -305,21 +281,11 @@ for i = 1:numel(data)
     ylim([0 limits(2)]);
     
     % Save turnover results locally
-    turnoverPath = fullfile(outputDir, 'Turnover.eps');
-    print(turnoverFig, '-deps2', turnoverPath);
     fprintf(1, 'Turnover time: %g s\n', -1/bFit(2));
     data(i).turnover_time = -1/bFit(2);
-    close(turnoverFig);
-      
+     
     % Save turnover results onto the server
-    turnover_ns = [ns '_turnover'];
-    fa = getImageFileAnnotations(session, data(i).id, 'include', turnover_ns);
-    if isempty(fa),
-        fa = writeFileAnnotation(session, turnoverPath, 'namespace', turnover_ns);
-        linkAnnotation(session, fa, 'image', data(i).id);
-    else
-        updateFileAnnotation(session, fa, turnoverPath);
-    end
+    saveAndUploadEPS(turnoverFig, outputDir, 'Turnover', session, data(i).id, [ns '_turnover'])
     
     % Close reader if using local image
     if hasCacheImage, r.close(); end
@@ -331,7 +297,8 @@ outputDir = fullfile(getenv('HOME'), 'omero', num2str(datasetId));
 if ~isdir(outputDir), mkdir(outputDir); end
 
 % Create results table
-resultsPath = fullfile(outputDir, 'Photoactivation_results.txt');
+resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
+    num2str(datasetId) '.txt']);
 fid = fopen(resultsPath ,'w+');
 fprintf(fid, 'Name\tId\tSpeed (microns/min)\tTurnover time (s)\n');
 for i = 1:numel(data),
