@@ -1,5 +1,6 @@
 configFile = '~/Documents/MATLAB/sce_ice.config';
-datasetId = 902;
+datasetId = 1103;
+invalidIds = [3421,3460];
 groupName = 'Rape project';
 cacheDir = '/Users/sebastien/Documents/Julie/Photoactivation';
 ns = 'photoactivation';
@@ -103,6 +104,7 @@ hWaitbar = waitbar(0, sprintf(msg, 1, numel(data)));
 close all
 
 for i = 1:numel(data)
+    if ismember(data(i).id, invalidIds), continue; end
     fprintf(1, 'Reading intensity from image %g:%s\n', data(i).id,...
         data(i).name);
     
@@ -331,9 +333,9 @@ if ~isdir(outputDir), mkdir(outputDir); end
 % Create results table
 resultsPath = fullfile(outputDir, 'Photoactivation_results.txt');
 fid = fopen(resultsPath ,'w+');
-fprintf(fid, 'Name\tSpeed (microns/min)\tTurnover time (s)\n');
+fprintf(fid, 'Name\tId\tSpeed (microns/min)\tTurnover time (s)\n');
 for i = 1:numel(data),
-    fprintf(fid, '%s\t%g\t%g\n', data(i).name, data(i).speed,...
+    fprintf(fid, '%s\t%g\t%g\n', data(i).name, data(i).id, data(i).speed,...
         data(i).turnover_time);
 end
 fclose(fid);
@@ -347,3 +349,6 @@ if isempty(fa),
 else
     updateFileAnnotation(session, fa, resultsPath);
 end
+
+%%
+client.closeSession
