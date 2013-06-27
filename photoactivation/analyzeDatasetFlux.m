@@ -1,8 +1,16 @@
-configFile = '~/Documents/MATLAB/sce_ice.config';
-datasetId = 1101;
-invalidIds = [3421,3460];
-groupName = 'Rape project';
-cacheDir = '/Users/sebastien/Documents/Julie/Photoactivation';
+function data = analyzeDatasetFlux(session, datasetId, varargin)
+
+ip = inputParser;
+ip.addRequired('datasetId', @(x) isscalar(x) && isnumeric(x));
+ip.addOptional('invalidIds', [], @(x) isnumeric(x) || isempty(x));
+ip.parse(datasetId, varargin{:});
+invalidIds = ip.Results.invalidIds;
+
+%%
+% Define default output directory
+mainOutputDir = fullfile(getenv('HOME'), 'omero');
+
+% Define main namespace
 ns = 'photoactivation';
 
 % define small and large fonts for graphical output
@@ -15,19 +23,6 @@ fitFun = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x));
 bInit = [.8 -.1 .2 -0.01];
 
 fitOptions = statset('Robust','on','MaxIter',500,'Display','off');
-%% OMERO.matlab initialization
-
-% Create client/session
-[client, session] = loadOmero(configFile);
-fprintf(1, 'Created connection to %s\n', char(client.getProperty('omero.host')));
-fprintf(1, 'Created session for user %s using group %s\n',...
-    char(session.getAdminService().getEventContext().userName),...
-    char(session.getAdminService().getEventContext().groupName));
-
-% Change group
-disp('Changing group')
-group = session.getAdminService.lookupGroup(groupName);
-session.setSecurityContext(group);
 
 %% Read images
 
@@ -99,8 +94,6 @@ data = data(nMeasurements > 5);
 %% Read image conten
 
 iChan = 0;
-msg = 'Reading images %g/%g';
-hWaitbar = waitbar(0, sprintf(msg, 1, numel(data)));
 close all
 
 for i = 1:numel(data)
@@ -108,7 +101,7 @@ for i = 1:numel(data)
     fprintf(1, 'Reading intensity from image %g:%s\n', data(i).id,...
         data(i).name);
     
-    cacheImage = fullfile(cacheDir, [num2str(data(i).id) '.ome.tiff']);
+    cacheImage = fullfile(mainOutputDir, [num2str(data(i).id) '.ome.tiff']);
     hasCacheImage = exist(cacheImage, 'file') == 2;
     if hasCacheImage
         fprintf(1,'using cache image at %s\n', cacheImage);
@@ -121,9 +114,6 @@ for i = 1:numel(data)
         pixelSize =  store.getPixelsPhysicalSizeX(0).getValue();
         dT = double(store.getPixelsTimeIncrement(0));
         
-        % Create output directory
-        outputDir = fullfile(cacheDir, num2str(data(i).id));
-        if ~isdir(outputDir), mkdir(outputDir); end
     else
         image = getImages(session, data(i).id);
         
@@ -131,11 +121,13 @@ for i = 1:numel(data)
         sizeY = image.getPrimaryPixels.getSizeY.getValue;
         pixelSize =  image.getPrimaryPixels.getPhysicalSizeX().getValue();
         dT = image.getPrimaryPixels.getTimeIncrement.getValue();
-        
-        outputDir = fullfile(getenv('HOME'), 'omero', num2str(data(i).id));
-        if ~isdir(outputDir), mkdir(outputDir); end
+       
         disp('using OMERO.matlab');
     end
+    
+    % Define output directory
+    outputDir = fullfile(mainOutputDir, num2str(data(i).id));
+    if ~isdir(outputDir), mkdir(outputDir); end
     
     % Calculating min point (Radon transform
     x0 =  floor((sizeX + 1) / 2);
@@ -156,12 +148,9 @@ for i = 1:numel(data)
     
     % Initializing output
     nTimes = numel(times);
-    A = zeros(nTimes, 1);
-    dA = zeros(nTimes, 1);
     Ibkg = zeros(nTimes, 1);
     Ibox = zeros(nTimes, nBoxes);
     dmax = zeros(nTimes, 1);
-    dRmax = zeros(nTimes, 1);
     It = zeros(nTimes, 1);
     colors = hsv(nTimes+1);
     
@@ -244,7 +233,7 @@ for i = 1:numel(data)
         plot(dmax(iT), p(2) + p(4), 'o', 'Color', color, 'MarkerFaceColor', color);
     end
     
-    saveAndUploadEPS(profilesFig, outputDir, 'Profiles', session, data(i).id, [ns '_profiles'])
+    saveAndUploadEPS(profilesFig, outputDir, 'Profiles', session, data(i).id, [ns '.profiles'])
     
     % Plot band position
     fluxFig = figure;
@@ -258,14 +247,14 @@ for i = 1:numel(data)
     ylabel('Relative position (microns)', lfont{:});
     
     % Save flux results locally
-    saveAndUploadEPS(fluxFig, outputDir, 'Flux', session, data(i).id, [ns '_flux'])
+    saveAndUploadEPS(fluxFig, outputDir, 'Flux', session, data(i).id, [ns '.flux'])
     
     % Print flux data
     fprintf(1, 'Band speed: %g microns/min\n', abs(coeff(1)) * 60);
     data(i).speed = abs(coeff(1)) *60;
 
     %Fit function to ratio timeseries
-    [bFit,resFit,jacFit,covFit,mseFit] = nlinfit(times*dT,It/It(1),fitFun,bInit,fitOptions);
+    [bFit,resFit,~,covFit,mseFit] = nlinfit(times*dT,It/It(1),fitFun,bInit,fitOptions);
     %Get confidence intervals of fit and fit values
     [fitValues,deltaFit] = nlpredci(fitFun,times*dT,bFit,resFit,'covar',covFit,'mse',mseFit);
     
@@ -285,7 +274,7 @@ for i = 1:numel(data)
     data(i).turnover_time = -1/bFit(2);
      
     % Save turnover results onto the server
-    saveAndUploadEPS(turnoverFig, outputDir, 'Turnover', session, data(i).id, [ns '_turnover'])
+    saveAndUploadEPS(turnoverFig, outputDir, 'Turnover', session, data(i).id, [ns '.turnover'])
     
     % Close reader if using local image
     if hasCacheImage, r.close(); end
@@ -302,13 +291,13 @@ resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
 fid = fopen(resultsPath ,'w+');
 fprintf(fid, 'Name\tId\tSpeed (microns/min)\tTurnover time (s)\n');
 for i = 1:numel(data),
-    fprintf(fid, '%s\t%g\t%g\n', data(i).name, data(i).id, data(i).speed,...
+    fprintf(fid, '%s\t%g\t%g\t%g\n', data(i).name, data(i).id, data(i).speed,...
         data(i).turnover_time);
 end
 fclose(fid);
 
 % Upload results file to OMERO
-results_ns = [ns '_results'];
+results_ns = [ns '.results'];
 fa = getDatasetFileAnnotations(session, datasetId, 'include', results_ns);
 if isempty(fa),
     fa = writeFileAnnotation(session, resultsPath, 'namespace', results_ns);
@@ -316,6 +305,3 @@ if isempty(fa),
 else
     updateFileAnnotation(session, fa, resultsPath);
 end
-
-%%
-client.closeSession
