@@ -59,6 +59,8 @@ originalFile = fileAnnotation.getFile;
 originalFile.setName(rstring([name ext]));
 originalFile.setPath(rstring(path));
 originalFile.setSize(rlong(fileLength));
+originalFile.setSha1('');
+
 
 if ~isempty(ip.Results.mimetype),
     originalFile.setMimetype(rstring(ip.Results.mimetype));
