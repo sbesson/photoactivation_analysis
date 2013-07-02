@@ -39,25 +39,27 @@ ip.addRequired('filePath', @(x) exist(x, 'file') == 2);
 ip.addOptional('nTries', 1, @isscalar);
 ip.parse(session, originalFile, filePath, varargin{:});
 
-% 
+% Read absolute input file path
 [~, f] = fileattrib(filePath);
 absolutePath = f.Name;
 
-% Compare checksums client-side and server-sid
+% Compare checksums of file client-side verus server-side
 [originalFile, hasher] = updateFile(session, originalFile, absolutePath);
 clientHash = char(hasher.checksumAsString());
 serverHash = char(originalFile.getSha1().getValue());
 iTry = 1;
 
+% Allow to re-upload of data if mismatching checksums
+msg = 'File checksum mismatch on upload: %s (client has %s, server has %s)';
 while iTry < ip.Results.nTries && ~strcmp(clientHash, serverHash)
-    disp('File checksum mismatch on upload. Retrying...');
+    fprintf(1, [msg '. Retrying...\n'], filePath, clientHash, serverHash);
     iTry = iTry + 1;
     [originalFile, hasher] = updateFile(session, originalFile, absolutePath);
     clientHash = char(hasher.checksumAsString());
     serverHash = char(originalFile.getSha1().getValue());
 end
 
-msg = 'File checksum mismatch on upload: %s (client has %s, server has %s)';
+% Check the file has been correctly uploaded
 assert(isequal(clientHash, serverHash), msg, filePath, clientHash, serverHash);
 
 function [originalFile, hasher] = updateFile(session, originalFile, absolutePath)
