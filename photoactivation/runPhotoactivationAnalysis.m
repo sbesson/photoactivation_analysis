@@ -4,14 +4,14 @@
 configFile = fullfile(fileparts(which('startup.m')), 'ice.config');
 
 % Project to use
-groupName = 'Rape project';
+groupName = 'Welburn lab';
 
 % Define projects or datasets to be analyzed
-projectId = 651;
+projectId = 652;
 datasetIds = [];
 
 % Wrong images (to exclude from the analysis)
-invalidIds = [3421,3460];
+invalidIds = [];
 
 %% OMERO.matlab initialization
 
@@ -30,6 +30,7 @@ session.setSecurityContext(group);
 %%
 
 if ~isempty(projectId),
+    fprintf(1, 'Loading project %s\n', projectId);
     project = getProjects(session, projectId, false);
     datasets = toMatlabList(project.linkedDatasetList);
     datasetIds = arrayfun(@(x) x.getId().getValue(), datasets)';

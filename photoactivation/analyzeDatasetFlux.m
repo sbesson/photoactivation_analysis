@@ -19,7 +19,7 @@ sfont = {'FontName', 'Helvetica', 'FontSize', 18};
 lfont = {'FontName', 'Helvetica', 'FontSize', 22};
 
 %Double-exponential function for fitting
-fitFun = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x));     
+fitFun = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x));
 bInit = [.8 -.1 .2 -0.01];
 
 fitOptions = statset('Robust','on','MaxIter',500,'Display','off');
@@ -80,7 +80,7 @@ for iImage = 1 : nImages
     % Filter valid rois with no shapes
     fprintf(1,'Found %g rectangle ROIs and %g point ROIs \n',...
         numel(data(iImage).boxes),numel(data(iImage).points));
-
+    
 end
 
 % Filter data with no ROI
@@ -121,13 +121,13 @@ for i = 1:numel(data)
         sizeY = image.getPrimaryPixels.getSizeY.getValue;
         pixelSize =  image.getPrimaryPixels.getPhysicalSizeX().getValue();
         dT = image.getPrimaryPixels.getTimeIncrement.getValue();
-       
+        
         disp('using OMERO.matlab');
     end
     
     % Define output directory
     outputDir = fullfile(mainOutputDir, num2str(data(i).id));
-    rmdir(outputDir, 's');
+    if isdir(outputDir), rmdir(outputDir, 's'); end
     mkdir(outputDir);
     
     % Calculating min point (Radon transform
@@ -197,8 +197,8 @@ for i = 1:numel(data)
             Icrop = I(yrange, xrange);
             Ibox(iT, iBox) = mean(Icrop(:));
         end
-%         Ibkg(iT) = min(Ibox(iT, :));
-%         mean(I(mask & I < threshold));
+        %         Ibkg(iT) = min(Ibox(iT, :));
+        %         mean(I(mask & I < threshold));
         Ibkg(iT) = mean(I(mask & Ifilt < threshold));
         I0=I;
         I0(mask) = Ibkg(iT);
@@ -235,7 +235,11 @@ for i = 1:numel(data)
         plot(dmax(iT), p(2) + p(4), 'o', 'Color', color, 'MarkerFaceColor', color);
     end
     
-    saveAndUploadEPS(profilesFig, outputDir, 'Profiles', session, data(i).id, [ns '.profiles'])
+    % Save profiles locally and on the server
+    profilesPath = fullfile(outputDir, ['Profiles_' num2str(data(i).id) '.eps']);
+    print(profilesFig, '-depsc', profilesPath);
+    close(profilesFig)    
+    updateFileAnnotation(session, profilesPath, 'image',  data(i).id, [ns '.profiles'])
     
     % Plot band position
     fluxFig = figure('Visible','off');
@@ -248,13 +252,16 @@ for i = 1:numel(data)
     xlabel('Time (s)', lfont{:});
     ylabel('Relative position (microns)', lfont{:});
     
-    % Save flux results locally
-    saveAndUploadEPS(fluxFig, outputDir, 'Flux', session, data(i).id, [ns '.flux'])
-    
+    % Save flux results locally and on the server
+    fluxPath = fullfile(outputDir, ['Flux_' num2str(data(i).id) '.eps']);
+    print(fluxFig, '-depsc', fluxPath);
+    close(fluxFig)    
+    updateFileAnnotation(session, fluxPath, 'image', data(i).id, [ns '.flux'])
+
     % Print flux data
     fprintf(1, 'Band speed: %g microns/min\n', abs(coeff(1)) * 60);
     data(i).speed = abs(coeff(1)) *60;
-
+    
     %Fit function to ratio timeseries
     [bFit,resFit,~,covFit,mseFit] = nlinfit(times*dT,It/It(1),fitFun,bInit,fitOptions);
     %Get confidence intervals of fit and fit values
@@ -274,21 +281,25 @@ for i = 1:numel(data)
     % Save turnover results locally
     fprintf(1, 'Turnover time: %g s\n', -1/bFit(2));
     data(i).turnover_time = -1/bFit(2);
-     
-    % Save turnover results onto the server
-    saveAndUploadEPS(turnoverFig, outputDir, 'Turnover', session, data(i).id, [ns '.turnover'])
-    
+
+    % Save flux results locally and on the server
+    turnoverPath = fullfile(outputDir, ['Turnover_' num2str(data(i).id) '.eps']);
+    print(turnoverFig, '-depsc', turnoverPath);
+    close(turnoverFig)    
+    updateFileAnnotation(session, turnoverPath, 'image', data(i).id, [ns '.turnover'])
+ 
     % Close reader if using local image
     if hasCacheImage, r.close(); end
 end
 
-%%
+%% Dataset results
 
 outputDir = fullfile(mainOutputDir, num2str(datasetId));
-rmdir(outputDir, 's');
+if isdir(outputDir), rmdir(outputDir, 's'); end
 mkdir(outputDir);
 
 % Create results table
+fprintf(1, 'Writing results for dataset %g\n', datasetId);
 resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
     num2str(datasetId) '.txt']);
 fid = fopen(resultsPath ,'w+');
@@ -300,17 +311,4 @@ end
 fclose(fid);
 
 % Upload results file to OMERO
-results_ns = [ns '.results'];
-fa = getDatasetFileAnnotations(session, datasetId, 'include', results_ns);
-if isempty(fa),
-    fa = writeFileAnnotation(session, resultsPath, 'namespace', results_ns);
-    fprintf(1, 'Created file annotation %g ', fa.getId().getValue());
-    linkAnnotation(session, fa, 'dataset', datasetId);
-    fprintf(1, 'and linked it to dataset %g\n', id);
-else
-    originalFile =  fa.getFile();
-    fprintf(1, 'Updating file: %g\n', originalFile.getId().getValue());
-    fprintf(1, 'Old SHA1: %s\n', char(originalFile.getSha1().getValue()));
-    originalFile = updateOriginalFile(session, originalFile, resultsPath);
-    fprintf(1, 'New SHA1: %s\n', char(originalFile.getSha1().getValue()));
-end
+updateFileAnnotation(session, resultsPath, 'dataset', datasetId, [ns '.results'])
