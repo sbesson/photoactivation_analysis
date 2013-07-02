@@ -127,7 +127,8 @@ for i = 1:numel(data)
     
     % Define output directory
     outputDir = fullfile(mainOutputDir, num2str(data(i).id));
-    if ~isdir(outputDir), mkdir(outputDir); end
+    rmdir(outputDir, 's');
+    mkdir(outputDir);
     
     % Calculating min point (Radon transform
     x0 =  floor((sizeX + 1) / 2);
@@ -283,8 +284,9 @@ end
 
 %%
 
-outputDir = fullfile(getenv('HOME'), 'omero', num2str(datasetId));
-if ~isdir(outputDir), mkdir(outputDir); end
+outputDir = fullfile(mainOutputDir, num2str(datasetId));
+rmdir(outputDir, 's');
+mkdir(outputDir);
 
 % Create results table
 resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
