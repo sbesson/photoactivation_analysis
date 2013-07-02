@@ -1,16 +1,11 @@
-function originalFile = updateOriginalFile(session, originalFile, filePath, varargin)
+function originalFile = updateOriginalFile(session, originalFile, filePath)
 % UPDATEORIGINALFILE Replace a file with new content on the OMERO server
 %
 %    originalFile = updateOriginalFile(session, originalFile, filePath)
 %    replaces the content of the original file specified by filePath
-%
-%    originalFile = updateOriginalFile(session, originalFile, filePath,
-%    nTries) also specifies the number of tries of the upload fails.
-%
 %    Examples:
 %
 %        originalFile = updateOriginalFile(session, originalFile, filePath)
-%        originalFile = updateOriginalFile(session, originalFile, filePath, nTries)
 %
 % See also: createFileAnnotation
 
@@ -36,35 +31,11 @@ ip = inputParser;
 ip.addRequired('session');
 ip.addRequired('originalFile', @(x) isa(x, 'omero.model.OriginalFile'));
 ip.addRequired('filePath', @(x) exist(x, 'file') == 2);
-ip.addOptional('nTries', 1, @isscalar);
-ip.parse(session, originalFile, filePath, varargin{:});
+ip.parse(session, originalFile, filePath);
 
-% Read absolute input file path
+% Read file absolute path and properties
 [~, f] = fileattrib(filePath);
 absolutePath = f.Name;
-
-% Compare checksums of file client-side verus server-side
-[originalFile, hasher] = updateFile(session, originalFile, absolutePath);
-clientHash = char(hasher.checksumAsString());
-serverHash = char(originalFile.getSha1().getValue());
-iTry = 1;
-
-% Allow to re-upload of data if mismatching checksums
-msg = 'File checksum mismatch on upload: %s (client has %s, server has %s)';
-while iTry < ip.Results.nTries && ~strcmp(clientHash, serverHash)
-    fprintf(1, [msg '. Retrying...\n'], filePath, clientHash, serverHash);
-    iTry = iTry + 1;
-    [originalFile, hasher] = updateFile(session, originalFile, absolutePath);
-    clientHash = char(hasher.checksumAsString());
-    serverHash = char(originalFile.getSha1().getValue());
-end
-
-% Check the file has been correctly uploaded
-assert(isequal(clientHash, serverHash), msg, filePath, clientHash, serverHash);
-
-function [originalFile, hasher] = updateFile(session, originalFile, absolutePath)
-
-% Create java io File
 [path, name, ext] = fileparts(absolutePath);
 fileLength = length(java.io.File(absolutePath));
 
@@ -73,7 +44,7 @@ originalFile.setName(rstring([name ext]));
 originalFile.setPath(rstring(path));
 originalFile.setSize(rlong(fileLength));
 
-% now we save the originalFile object
+% Update the originalFile object
 updateService = session.getUpdateService();
 originalFile = updateService.saveAndReturnObject(originalFile);
 
@@ -90,9 +61,18 @@ rawFileStore.setFileId(originalFile.getId().getValue());
 fid = fopen(absolutePath);
 byteArray = fread(fid,[1, fileLength], 'uint8');
 rawFileStore.write(byteArray, 0, fileLength);
+rawFileStore.truncate(fileLength);
 hasher.putBytes(byteArray);
 fclose(fid);
 
 % Save and close the service
 originalFile = rawFileStore.save();
 rawFileStore.close();
+
+% Compare checksums of file client-side verus server-side
+clientHash = char(hasher.checksumAsString());
+serverHash = char(originalFile.getSha1().getValue());
+
+% Allow to re-upload of data if mismatching checksums
+msg = 'File checksum mismatch on upload: %s (client has %s, server has %s)';
+assert(isequal(clientHash, serverHash), msg, filePath, clientHash, serverHash);
