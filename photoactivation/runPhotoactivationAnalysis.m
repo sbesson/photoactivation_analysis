@@ -37,7 +37,7 @@ end
 
 try
     for datasetId = datasetIds
-        analyzeDatasetFlux(session, datasetId, invalidIds)
+        analyzeDatasetFlux(session, datasetId, invalidIds);
     end
 catch ME
     fprintf(1, 'Error while analyzing dataset %g: %s\n', datasetId, ME.message);

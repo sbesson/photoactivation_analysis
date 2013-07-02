@@ -17,6 +17,6 @@ else
     originalFile =  fa.getFile();
     fprintf(1, 'Updating file: %g\n', originalFile.getId().getValue());
     fprintf(1, 'Old SHA1: %s\n', char(originalFile.getSha1().getValue()));
-    originalFile = updateOriginalFile(session, originalFile, fullPath, nTries);
+    originalFile = updateOriginalFile(session, originalFile, fullPath);
     fprintf(1, 'New SHA1: %s\n', char(originalFile.getSha1().getValue()));
 end

@@ -304,7 +304,13 @@ results_ns = [ns '.results'];
 fa = getDatasetFileAnnotations(session, datasetId, 'include', results_ns);
 if isempty(fa),
     fa = writeFileAnnotation(session, resultsPath, 'namespace', results_ns);
+    fprintf(1, 'Created file annotation %g ', fa.getId().getValue());
     linkAnnotation(session, fa, 'dataset', datasetId);
+    fprintf(1, 'and linked it to dataset %g\n', id);
 else
-    updateFileAnnotation(session, fa, resultsPath);
+    originalFile =  fa.getFile();
+    fprintf(1, 'Updating file: %g\n', originalFile.getId().getValue());
+    fprintf(1, 'Old SHA1: %s\n', char(originalFile.getSha1().getValue()));
+    originalFile = updateOriginalFile(session, originalFile, resultsPath);
+    fprintf(1, 'New SHA1: %s\n', char(originalFile.getSha1().getValue()));
 end
