@@ -143,7 +143,7 @@ for i = 1:numel(data)
     times = (tmin:tmax)';
     
     
-    profilesFig = figure;
+    profilesFig = figure('Visible','off');
     hold on;
     
     % Initializing output
@@ -182,7 +182,7 @@ for i = 1:numel(data)
         % Calculating Radon transform
         fprintf(1, 'alpha: %g\n', alpha(iT));
         [R,x] = radon(I, -alpha(iT));
-        figure;
+        figure('Visible','off');
         hold on
         plot(x, R, 'Color', color);
         
@@ -209,6 +209,7 @@ for i = 1:numel(data)
         % Fitting residuals
         dR = R - Rbg;
         figure(profilesFig);
+        set(gcf, 'Visible', 'off');
         hold on
         d = x-P(iT, 1);
         plot(d, dR, 'Color', color);
@@ -218,7 +219,7 @@ for i = 1:numel(data)
         [~, imax] = max(dR);
         xrange = imax-20:imax+20;
         
-        figure;
+        figure('Visible','off');
         [p, dp] = fitGaussian1D(d(xrange), dR(xrange), [50 max(dR(xrange)) 20 0],'xAs');
         plot(d, dR,'ok');
         yfit =  exp(-(d(xrange)-p(1)).^2./(2*p(3)^2))*p(2) + p(4);
@@ -236,7 +237,7 @@ for i = 1:numel(data)
     saveAndUploadEPS(profilesFig, outputDir, 'Profiles', session, data(i).id, [ns '.profiles'])
     
     % Plot band position
-    fluxFig = figure;
+    fluxFig = figure('Visible','off');
     plot(times * dT, (dmax-dmax(1)) * pixelSize, 'ok');
     coeff = polyfit((times + 1) * dT, (dmax-dmax(1)) * pixelSize, 1);
     hold on
@@ -258,7 +259,7 @@ for i = 1:numel(data)
     %Get confidence intervals of fit and fit values
     [fitValues,deltaFit] = nlpredci(fitFun,times*dT,bFit,resFit,'covar',covFit,'mse',mseFit);
     
-    turnoverFig = figure;
+    turnoverFig = figure('Visible','off');
     plot(times * dT, It/It(1), 'ok');
     hold on
     plot(times * dT, fitValues, '--k');
