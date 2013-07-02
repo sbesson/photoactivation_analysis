@@ -35,12 +35,12 @@ if ~isempty(projectId),
     datasetIds = arrayfun(@(x) x.getId().getValue(), datasets)';
 end
 
-for datasetId = datasetIds
-    try        
+try
+    for datasetId = datasetIds
         analyzeDatasetFlux(session, datasetId, invalidIds)
-    catch ME
-        fprintf(1, 'Error while analyzing dataset %g: %s', datasetId, ME.message);
-    end 
+    end
+catch ME
+    fprintf(1, 'Error while analyzing dataset %g: %s\n', datasetId, ME.message);
 end
 
 %%
