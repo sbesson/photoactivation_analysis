@@ -291,15 +291,17 @@ for i = 1:numel(data)
     ylim([0 limits(2)]);
     
     % Save turnover results locally
-    fprintf(1, 'Turnover time: %g s\n', -1/bFit(2));
-    data(i).turnover_time = -1/bFit(2);
-
+    data(i).t1 = -1/bFit(2);
+    data(i).t2 = -1/bFit(4);
+    fprintf(1, 'Fast turnover time: %g s\n', data(i).t1);
+    fprintf(1, 'Slow turnover time: %g s\n', data(i).t2);
+    
     % Save flux results locally and on the server
     turnoverPath = fullfile(outputDir, ['Turnover_' num2str(data(i).id) '.eps']);
     print(turnoverFig, '-depsc', turnoverPath);
-    close(turnoverFig)    
+    close(turnoverFig)
     updateFileAnnotation(session, turnoverPath, 'image', data(i).id, [ns '.turnover'])
- 
+    
     % Close reader if using local image
     if hasCacheImage, r.close(); end
 end
@@ -315,10 +317,10 @@ fprintf(1, 'Writing results for dataset %g\n', datasetId);
 resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
     num2str(datasetId) '.txt']);
 fid = fopen(resultsPath ,'w+');
-fprintf(fid, 'Name\tId\tSpeed (microns/min)\tTurnover time (s)\n');
+fprintf(fid, 'Name\tId\tSpeed (microns/min)\tFast turnover time (s)\tSlow turnover time (s)\n');
 for i = 1:numel(data),
-    fprintf(fid, '%s\t%g\t%g\t%g\n', data(i).name, data(i).id, data(i).speed,...
-        data(i).turnover_time);
+    fprintf(fid, '%s\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id, data(i).speed,...
+        data(i).t1, data(i).t2);
 end
 fclose(fid);
 
