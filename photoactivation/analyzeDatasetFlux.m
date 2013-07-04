@@ -95,6 +95,7 @@ data = data(nMeasurements > 5);
 
 iChan = 0;
 close all
+vmax = 5;
 
 for i = 1:numel(data)
     if ismember(data(i).id, invalidIds), continue; end
@@ -217,10 +218,21 @@ for i = 1:numel(data)
         xlim([0 max(d_centrosomes)])
         
         % Integrate intensity
-        [~, imax] = max(dR);
-        xrange = imax-20:imax+20;
+        if iT == 1
+            % Look for absolute maximum on the first frame
+            [~, imax] = max(dR);
+        else
+            % Look for absolute maximum in the neighborood of previous
+            % maximumu
+            delta = vmax * dT / 60 / pixelSize;
+            localrange = find(d > dmax(iT-1)-delta &...
+                d < dmax(iT-1) + delta);
+            [~, imax] = max(dR(localrange));
+            imax = localrange(imax);
+        end
         
         figure('Visible','off');
+        xrange = imax-20:imax+20;
         [p, dp] = fitGaussian1D(d(xrange), dR(xrange), [50 max(dR(xrange)) 20 0],'xAs');
         plot(d, dR,'ok');
         yfit =  exp(-(d(xrange)-p(1)).^2./(2*p(3)^2))*p(2) + p(4);
@@ -238,7 +250,7 @@ for i = 1:numel(data)
     % Save profiles locally and on the server
     profilesPath = fullfile(outputDir, ['Profiles_' num2str(data(i).id) '.eps']);
     print(profilesFig, '-depsc', profilesPath);
-    close(profilesFig)    
+    close(profilesFig)
     updateFileAnnotation(session, profilesPath, 'image',  data(i).id, [ns '.profiles'])
     
     % Plot band position
@@ -255,9 +267,9 @@ for i = 1:numel(data)
     % Save flux results locally and on the server
     fluxPath = fullfile(outputDir, ['Flux_' num2str(data(i).id) '.eps']);
     print(fluxFig, '-depsc', fluxPath);
-    close(fluxFig)    
+    close(fluxFig)
     updateFileAnnotation(session, fluxPath, 'image', data(i).id, [ns '.flux'])
-
+    
     % Print flux data
     fprintf(1, 'Band speed: %g microns/min\n', abs(coeff(1)) * 60);
     data(i).speed = abs(coeff(1)) *60;
