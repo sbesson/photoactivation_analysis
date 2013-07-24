@@ -4,14 +4,14 @@
 configFile = fullfile(fileparts(which('startup.m')), 'ice.config');
 
 % Project to use
-groupName = 'Welburn lab';
+groupName = 'Rape project';
 
 % Define projects or datasets to be analyzed
-projectId = 652;
-datasetIds = [];
+projectId = [];
+datasetIds = 1103;
 
 % Wrong images (to exclude from the analysis)
-invalidIds = [];
+invalidIds = [3991, 3412];
 
 %% OMERO.matlab initialization
 

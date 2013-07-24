@@ -272,7 +272,7 @@ for i = 1:numel(data)
         end
         
         % Plot fitted signals
-        figure('Visible','on');
+        figure('Visible','off');
         hold on
         plot(d, dR,'ok');
         plot(d, signal_fit,'-k');
@@ -289,7 +289,7 @@ for i = 1:numel(data)
     profilesPath = fullfile(outputDir, ['Profiles_' num2str(data(i).id) '.eps']);
     print(profilesFig, '-depsc', profilesPath);
     close(profilesFig)
-    updateFileAnnotation(session, profilesPath, 'image',  data(i).id, [ns '.profiles'])
+    uploadFileResults(session, profilesPath, 'image',  data(i).id, [ns '.profiles'])
     
     % Plot band position
     fluxFig = figure('Visible','off');
@@ -306,7 +306,7 @@ for i = 1:numel(data)
     fluxPath = fullfile(outputDir, ['Flux_' num2str(data(i).id) '.eps']);
     print(fluxFig, '-depsc', fluxPath);
     close(fluxFig)
-    updateFileAnnotation(session, fluxPath, 'image', data(i).id, [ns '.flux'])
+    uploadFileResults(session, fluxPath, 'image', data(i).id, [ns '.flux'])
     
     % Print flux data
     fprintf(1, 'Band speed: %g microns/min\n', abs(coeff(1)) * 60);
@@ -343,7 +343,7 @@ for i = 1:numel(data)
     turnoverPath = fullfile(outputDir, ['Turnover_' num2str(data(i).id) '.eps']);
     print(turnoverFig, '-depsc', turnoverPath);
     close(turnoverFig)
-    updateFileAnnotation(session, turnoverPath, 'image', data(i).id, [ns '.turnover'])
+    uploadFileResults(session, turnoverPath, 'image', data(i).id, [ns '.turnover'])
     
     % Close reader if using local image
     if hasCacheImage, r.close(); end
@@ -368,4 +368,4 @@ end
 fclose(fid);
 
 % Upload results file to OMERO
-updateFileAnnotation(session, resultsPath, 'dataset', datasetId, [ns '.results'])
+uploadFileResults(session, resultsPath, 'dataset', datasetId, [ns '.results'])
