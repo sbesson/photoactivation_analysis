@@ -19,10 +19,19 @@ sfont = {'FontName', 'Helvetica', 'FontSize', 18};
 lfont = {'FontName', 'Helvetica', 'FontSize', 22};
 
 %Double-exponential function for fitting
-fitFun = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x));
+turnoverFn = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x));
 bInit = [.8 -.1 .2 -0.01];
+lb = [0 -Inf 0 -Inf];
+ub = [1.2 0 1.2 0];
 
 fitOptions = statset('Robust','on','MaxIter',500,'Display','off');
+
+opts = optimset('MaxFunEvals', 1e4, ...
+    'MaxIter', 1e4, ...
+    'Display', 'off', ...
+    'TolX', 1e-8, ...
+    'Tolfun', 1e-8);
+
 
 %% Read images
 
@@ -95,7 +104,8 @@ data = data(nMeasurements > 5);
 
 iChan = 0;
 close all
-vmax = 5;
+vmax = 2; % Maximum velocity of the primiary signal
+nSigma = 2;
 
 for i = 1:numel(data)
     if ismember(data(i).id, invalidIds), continue; end
@@ -137,9 +147,7 @@ for i = 1:numel(data)
     
     % Read rois and times bounds
     points = data(i).points;
-    boxes = data(i).boxes;
     nPoints = numel(points);
-    nBoxes = numel(boxes);
     tmin = min(cellfun(@min, {points.times}));
     tmax = max(cellfun(@max, {points.times}));
     times = (tmin:tmax)';
@@ -151,9 +159,11 @@ for i = 1:numel(data)
     % Initializing output
     nTimes = numel(times);
     Ibkg = zeros(nTimes, 1);
-    Ibox = zeros(nTimes, nBoxes);
-    dmax = zeros(nTimes, 1);
-    It = zeros(nTimes, 1);
+    Isignal = zeros(nTimes, 1);
+    dsignal = zeros(nTimes, 1);
+    Isignal2 = zeros(nTimes, 1);
+    dsignal2 = zeros(nTimes, 1);
+
     colors = hsv(nTimes+1);
     
     % Calculate angles
@@ -192,14 +202,6 @@ for i = 1:numel(data)
         Ifilt= filterGauss2D(I,5);
         mask = bwareaopen(Ifilt>50, 20);
         threshold = thresholdRosin(Ifilt(mask));
-        for iBox = 1: numel(boxes)
-            xrange = boxes(iBox).x:boxes(iBox).x + boxes(iBox).width;
-            yrange = boxes(iBox).y:boxes(iBox).y + boxes(iBox).height;
-            Icrop = I(yrange, xrange);
-            Ibox(iT, iBox) = mean(Icrop(:));
-        end
-        %         Ibkg(iT) = min(Ibox(iT, :));
-        %         mean(I(mask & I < threshold));
         Ibkg(iT) = mean(I(mask & Ifilt < threshold));
         I0=I;
         I0(mask) = Ibkg(iT);
@@ -225,26 +227,62 @@ for i = 1:numel(data)
             % Look for absolute maximum in the neighborood of previous
             % maximumu
             delta = vmax * dT / 60 / pixelSize;
-            localrange = find(d > dmax(iT-1)-delta &...
-                d < dmax(iT-1) + delta);
+            localrange = find(d > dsignal(iT-1)-delta &...
+                d < dsignal(iT-1) + delta);
             [~, imax] = max(dR(localrange));
             imax = localrange(imax);
         end
         
-        figure('Visible','off');
-        xrange = imax-20:imax+20;
-        [p, dp] = fitGaussian1D(d(xrange), dR(xrange), [50 max(dR(xrange)) 20 0],'xAs');
-        plot(d, dR,'ok');
-        yfit =  exp(-(d(xrange)-p(1)).^2./(2*p(3)^2))*p(2) + p(4);
+        % Fit signal with a 1 D Gaussian
+        signalrange = imax-20:imax+20;
+        p = fitGaussian1D(d(signalrange), dR(signalrange),...
+            [50 max(dR(signalrange)) 20 0],'xAs');
+        % Isignal(iT) = sqrt(2*pi) * p(3) *p(2); % Integrated intensity
+        Isignal(iT) = p(2); % Amplitude
+        dsignal(iT) = p(1); %position
+        signal_fit =  exp(-(d-p(1)).^2./(2*p(3)^2))*p(2) + p(4);
+        fprintf(1, 'Primary signal detected at position %g with intensity %g\n',...
+            dsignal(iT), Isignal(iT));
+        
+        % Calculate residuals to fit other spindle signal
+        residuals = dR - signal_fit;
+        signalrange = d > p(1) - nSigma * p(3) & d < p(1) + nSigma*p(3);
+        if p(1) > d_centrosomes(iT)/2
+            fullrange = d > 0 & d < d_centrosomes(iT)/2;
+        else
+            fullrange = d > d_centrosomes(iT)/2 & d < d_centrosomes(iT);
+        end
+        signal2range = fullrange & ~signalrange;
+        
+        % Fit residuals with a 1D Gaussian
+        if ~any(signal2range) || max(residuals(signal2range)) < 0.05 * Isignal(iT),
+            disp('No secondary signal  detected');
+            signal2_fit = zeros(size(d));
+            Isignal2(iT) = 0; % amplitude
+            dsignal2(iT) = 0;
+        else
+            p2 = fitGaussian1D(d(signal2range), residuals(signal2range),...
+                [mean(d(signal2range)) max(residuals(signal2range)) 20 0],'xAs');
+            signal2_fit =  exp(-(d-p2(1)).^2./(2*p2(3)^2))*p2(2) + p2(4);
+            % Isignal2(iT) = sqrt(2*pi) * p2(3) *p2(2); % integrated
+            Isignal2(iT) = p2(2); % amplitude
+            dsignal2(iT) = p2(1);
+            fprintf(1, 'Secondary signal maximum detected at position %g with intensity %g\n',...
+                dsignal2(iT), Isignal2(iT));
+        end
+        
+        % Plot fitted signals
+        figure('Visible','on');
         hold on
-        plot(d(xrange), yfit,'-k');
+        plot(d, dR,'ok');
+        plot(d, signal_fit,'-k');
+        plot(d, signal2_fit,'--k');
+        xlim([0 max(d_centrosomes)])
         print(gcf, '-dpng', fullfile(outputDir, ['Time' num2str(t) '-fitted.png']));
         close(gcf);
         
         % Integrate intensity
-        It(iT) = sqrt(2*pi) * p(3) *p(2);
-        dmax(iT) =p(1);
-        plot(dmax(iT), p(2) + p(4), 'o', 'Color', color, 'MarkerFaceColor', color);
+        plot(dsignal(iT), Isignal(iT), 'o', 'Color', color, 'MarkerFaceColor', color);
     end
     
     % Save profiles locally and on the server
@@ -255,8 +293,8 @@ for i = 1:numel(data)
     
     % Plot band position
     fluxFig = figure('Visible','off');
-    plot(times * dT, (dmax-dmax(1)) * pixelSize, 'ok');
-    coeff = polyfit((times + 1) * dT, (dmax-dmax(1)) * pixelSize, 1);
+    plot(times * dT, (dsignal-dsignal(1)) * pixelSize, 'ok');
+    coeff = polyfit((times + 1) * dT, (dsignal-dsignal(1)) * pixelSize, 1);
     hold on
     plot(times * dT, coeff(1) * (times + 1) * dT + coeff(2), '--k');
     box on
@@ -275,14 +313,19 @@ for i = 1:numel(data)
     data(i).speed = abs(coeff(1)) *60;
     
     %Fit function to ratio timeseries
-    [bFit,resFit,~,covFit,mseFit] = nlinfit(times*dT,It/It(1),fitFun,bInit,fitOptions);
+    dI = Isignal - Isignal2;
+    dInorm = dI/dI(1);
+    % [bFit,resFit,~,covFit,mseFit] = nlinfit(times*dT,dInorm,turnoverFn,...
+    %    bInit,fitOptions);
     %Get confidence intervals of fit and fit values
-    [fitValues,deltaFit] = nlpredci(fitFun,times*dT,bFit,resFit,'covar',covFit,'mse',mseFit);
-    
+    %     [fitValues,deltaFit] = nlpredci(turnoverFn,times*dT,bFit,resFit,'covar',covFit,'mse',mseFit);
+    diffFn = @(p) turnoverFn(p, times*dT) - dInorm;
+    bFit = lsqnonlin(diffFn, bInit, lb, ub, opts);
+
     turnoverFig = figure('Visible','off');
-    plot(times * dT, It/It(1), 'ok');
+    plot(times * dT, dInorm, 'ok');
     hold on
-    plot(times * dT, fitValues, '--k');
+    plot(times * dT, turnoverFn(bFit, times*dT), '--k');
     box on
     set(gca, 'LineWidth', 1.5, sfont{:}, 'Layer', 'top');
     xlabel('Time (s)', lfont{:});
