@@ -1,4 +1,4 @@
-function fa = uploadFileResults(session, path, type, id, namespace)
+function fa = uploadFileResults(session, filepath, type, id, namespace)
 
 % Input check
 ip = inputParser;
@@ -6,7 +6,7 @@ ip.addRequired('filepath', @(x) ischar(x) && exist(x, 'file') == 2);
 ip.addRequired('type', @(x) ismember(x, {'image', 'dataset'}));
 ip.addRequired('id', @isscalar);
 ip.addRequired('namespace', @ischar);
-ip.parse(path, type, id, namespace);
+ip.parse(filepath, type, id, namespace);
 
 % Save projections onto the server
 if strcmp(type, 'image')
