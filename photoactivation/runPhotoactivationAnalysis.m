@@ -7,8 +7,8 @@ configFile = fullfile(fileparts(which('startup.m')), 'ice.config');
 groupName = 'Rape project';
 
 % Define projects or datasets to be analyzed
-projectId = [];
-datasetIds = 1103;
+projectId = 651;
+datasetIds = [];
 
 % Wrong images (to exclude from the analysis)
 invalidIds = [3991, 3412];
