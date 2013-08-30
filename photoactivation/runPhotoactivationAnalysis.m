@@ -6,9 +6,8 @@ configFile = fullfile(fileparts(which('startup.m')), 'ice.config');
 % Project to use
 groupName = 'Rape project';
 
-% Define projects or datasets to be analyzed
-projectId = 651;
-datasetIds = [];
+% Define id of projects or datasets to be analyzed
+ids = 652;
 
 % Wrong images (to exclude from the analysis)
 invalidIds = [3991, 3412];
@@ -29,11 +28,14 @@ session.setSecurityContext(group);
 
 %%
 
-if ~isempty(projectId),
-    fprintf(1, 'Loading project %s\n', projectId);
-    project = getProjects(session, projectId, false);
+project = getProjects(session, ids, false);
+
+if ~isempty(project)
+    fprintf(1, 'Loading datasets from project %g\n', ids);
     datasets = toMatlabList(project.linkedDatasetList);
     datasetIds = arrayfun(@(x) x.getId().getValue(), datasets)';
+else
+    datasetIds = ids;
 end
 
 try
