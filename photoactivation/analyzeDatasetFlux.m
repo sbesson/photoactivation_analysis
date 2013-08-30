@@ -261,14 +261,21 @@ for i = 1:numel(data)
             Isignal2(iT) = 0; % amplitude
             dsignal2(iT) = 0;
         else
-            p2 = fitGaussian1D(d(signal2range), residuals(signal2range),...
-                [mean(d(signal2range)) max(residuals(signal2range)) 20 0],'xAs');
-            signal2_fit =  exp(-(d-p2(1)).^2./(2*p2(3)^2))*p2(2) + p2(4);
-            % Isignal2(iT) = sqrt(2*pi) * p2(3) *p2(2); % integrated
-            Isignal2(iT) = p2(2); % amplitude
-            dsignal2(iT) = p2(1);
-            fprintf(1, 'Secondary signal maximum detected at position %g with intensity %g\n',...
-                dsignal2(iT), Isignal2(iT));
+            try
+                p2 = fitGaussian1D(d(signal2range), residuals(signal2range),...
+                    [mean(d(signal2range)) max(residuals(signal2range)) 20 0],'xAs');
+                signal2_fit =  exp(-(d-p2(1)).^2./(2*p2(3)^2))*p2(2) + p2(4);
+                % Isignal2(iT) = sqrt(2*pi) * p2(3) *p2(2); % integrated
+                Isignal2(iT) = p2(2); % amplitude
+                dsignal2(iT) = p2(1);
+                fprintf(1, 'Secondary signal maximum detected at position %g with intensity %g\n',...
+                    dsignal2(iT), Isignal2(iT));
+            catch ME
+                disp(ME.message);
+                signal2_fit = zeros(size(d));
+                Isignal2(iT) = 0; % amplitude
+                dsignal2(iT) = 0;
+            end
         end
         
         % Plot fitted signals
