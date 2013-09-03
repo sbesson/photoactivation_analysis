@@ -2,16 +2,25 @@
 
 % OMERO.matlab configuration file
 configFile = fullfile(fileparts(which('startup.m')), 'ice.config');
+if ~exist(configFile, 'file') == 2,
+    [filename, path] = uigetfile('Select an OMERO configuration file');
+    assert(~isequal(filename, 0), 'No file selected');
+    configFile = fullfile(path, filename);
+end
+fprintf(1, 'Using OMERO configuration file located in %s\n', configFile);
 
 % Project to use
-groupName = 'Rape project';
+defaultgroup = 'Rape project';
+inputString = ['Specify the name of the group  [default: ' defaultgroup ']: '];
+groupName = input(inputString, 's');
+if isempty(groupName), groupName = defaultgroup; end
 
 % Define id of projects or datasets to be analyzed
-ids = 652;
+ids = input('Specify the ids of the projects or datasets to analyze:');
+assert(~isempty(ids), 'No ids selected');
 
 % Wrong images (to exclude from the analysis)
 invalidIds = [3991, 3412];
-
 %% OMERO.matlab initialization
 
 % Create client/session
