@@ -163,7 +163,7 @@ for i = 1:numel(data)
     dsignal = zeros(nTimes, 1);
     Isignal2 = zeros(nTimes, 1);
     dsignal2 = zeros(nTimes, 1);
-
+    
     colors = hsv(nTimes+1);
     
     % Calculate angles
@@ -296,7 +296,7 @@ for i = 1:numel(data)
     profilesPath = fullfile(outputDir, ['Profiles_' num2str(data(i).id) '.eps']);
     print(profilesFig, '-depsc', profilesPath);
     close(profilesFig)
-    uploadFileResults(session, profilesPath, 'image',  data(i).id, [ns '.profiles'])
+    uploadFileResults(session, profilesPath, 'image',  data(i).id, [ns '.profiles']);
     
     % Plot band position
     fluxFig = figure('Visible','off');
@@ -313,10 +313,12 @@ for i = 1:numel(data)
     fluxPath = fullfile(outputDir, ['Flux_' num2str(data(i).id) '.eps']);
     print(fluxFig, '-depsc', fluxPath);
     close(fluxFig)
-    uploadFileResults(session, fluxPath, 'image', data(i).id, [ns '.flux'])
+    uploadFileResults(session, fluxPath, 'image', data(i).id, [ns '.flux']);
     
     % Print flux data
     fprintf(1, 'Band speed: %g microns/min\n', abs(coeff(1)) * 60);
+    data(i).times = times * dT;
+    data(i).position = (dsignal-dsignal(1)) * pixelSize;
     data(i).speed = abs(coeff(1)) *60;
     
     %Fit function to ratio timeseries
@@ -328,7 +330,7 @@ for i = 1:numel(data)
     %     [fitValues,deltaFit] = nlpredci(turnoverFn,times*dT,bFit,resFit,'covar',covFit,'mse',mseFit);
     diffFn = @(p) turnoverFn(p, times*dT) - dInorm;
     bFit = lsqnonlin(diffFn, bInit, lb, ub, opts);
-
+    
     turnoverFig = figure('Visible','off');
     plot(times * dT, dInorm, 'ok');
     hold on
@@ -341,6 +343,7 @@ for i = 1:numel(data)
     ylim([0 limits(2)]);
     
     % Save turnover results locally
+    data(i).dInorm = dInorm;
     data(i).t1 = -1/bFit(2);
     data(i).t2 = -1/bFit(4);
     fprintf(1, 'Fast turnover time: %g s\n', data(i).t1);
@@ -350,7 +353,7 @@ for i = 1:numel(data)
     turnoverPath = fullfile(outputDir, ['Turnover_' num2str(data(i).id) '.eps']);
     print(turnoverFig, '-depsc', turnoverPath);
     close(turnoverFig)
-    uploadFileResults(session, turnoverPath, 'image', data(i).id, [ns '.turnover'])
+    uploadFileResults(session, turnoverPath, 'image', data(i).id, [ns '.turnover']);
     
     % Close reader if using local image
     if hasCacheImage, r.close(); end
@@ -362,17 +365,89 @@ outputDir = fullfile(mainOutputDir, num2str(datasetId));
 if isdir(outputDir), rmdir(outputDir, 's'); end
 mkdir(outputDir);
 
+validData = arrayfun(@(x) ~isempty(x.position), data);
+
+% Save positions table
+fprintf(1, 'Writing positions for dataset %g\n', datasetId);
+positionsPath = fullfile(outputDir, ['Positions_' num2str(datasetId) '.txt']);
+fid = fopen(positionsPath ,'w');
+
+fprintf(fid, 'Times\t');
+for i = find(validData)',
+    fprintf(fid, '\t%s', data(i).name);
+end
+fprintf(fid, '\n');
+for t = 1: numel(data(1).times),
+    fprintf(fid, '%g', data(1).times(t));
+    for j = find(validData)',
+        fprintf(fid, '\t%g', data(j).position(t));
+    end
+    fprintf(fid, '\n');
+end
+fclose(fid);
+
+% Create results table
+uploadFileResults(session, positionsPath, 'dataset', datasetId, [ns '.positions']);
+
+
+% Save intensity table
+fprintf(1, 'Writing intensities for dataset %g\n', datasetId);
+intensitiesPath = fullfile(outputDir, ['Intensities_' num2str(datasetId) '.txt']);
+fid = fopen(intensitiesPath ,'w');
+
+fprintf(fid, 'Times\t');
+for i = find(validData)',
+    fprintf(fid, '\t%s', data(i).name);
+end
+fprintf(fid, '\n');
+for t = 1: numel(data(1).times),
+    fprintf(fid, '%g', data(1).times(t));
+    for j = find(validData)',
+        fprintf(fid, '\t%g', data(j).dInorm(t));
+    end
+    fprintf(fid, '\n');
+end
+fclose(fid);
+
+% Create results table
+uploadFileResults(session, intensitiesPath, 'dataset', datasetId, [ns '.intensities']);
+
+% Calculate speed for the mean positions
+all_positions = horzcat(data.position);
+negative_slopes = all_positions(end, :) <0;
+all_positions(:, negative_slopes) = - all_positions(:, negative_slopes);
+coeff = polyfit(data(1).times, mean(all_positions, 2), 1);
+speed_mean = abs(coeff(1)) *60;
+
+% Average and fit the normalized intensities
+allInorm = horzcat(data.dInorm);
+dInorm_mean = mean(allInorm, 2);
+diffFn = @(p) turnoverFn(p, times*dT) - dInorm_mean;
+bFit = lsqnonlin(diffFn, bInit, lb, ub, opts);
+t1_mean = -1/bFit(2);
+t2_mean = -1/bFit(4);
+
+% Filter, average and fit the normalized intensities
+dInorm_filt = mean(allInorm(:, [data.t2]  < 1e10), 2);
+diffFn = @(p) turnoverFn(p, times*dT) - dInorm_filt;
+bFit = lsqnonlin(diffFn, bInit, lb, ub, opts);
+t1_filt = -1/bFit(2);
+t2_filt = -1/bFit(4);
+
 % Create results table
 fprintf(1, 'Writing results for dataset %g\n', datasetId);
 resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
     num2str(datasetId) '.txt']);
-fid = fopen(resultsPath ,'w+');
+fid = fopen(resultsPath ,'w');
 fprintf(fid, 'Name\tId\tSpeed (microns/min)\tFast turnover time (s)\tSlow turnover time (s)\n');
 for i = 1:numel(data),
     fprintf(fid, '%s\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id, data(i).speed,...
         data(i).t1, data(i).t2);
 end
+fprintf(fid, '\n');
+fprintf(fid, 'Average\t\t%g\t%g\t%g\n', speed_mean, t1_mean, t2_mean);
+fprintf(fid, 'Average (filtered)\t\t\t%g\t%g\n', t1_filt, t2_filt);
 fclose(fid);
 
 % Upload results file to OMERO
-uploadFileResults(session, resultsPath, 'dataset', datasetId, [ns '.results'])
+uploadFileResults(session, resultsPath, 'dataset', datasetId, [ns '.results']);
