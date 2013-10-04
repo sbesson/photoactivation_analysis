@@ -1,7 +1,8 @@
 function data = analyzeDatasetFlux(session, datasetId, varargin)
 
+
 ip = inputParser;
-ip.addRequired('datasetId', @(x) isscalar(x) && isnumeric(x));
+ip.addRequired('datastId', @(x) isscalar(x) && isnumeric(x));
 ip.addOptional('invalidIds', [], @(x) isnumeric(x) || isempty(x));
 ip.parse(datasetId, varargin{:});
 invalidIds = ip.Results.invalidIds;
@@ -292,6 +293,10 @@ for i = 1:numel(data)
         plot(dsignal(iT), Isignal(iT), 'o', 'Color', color, 'MarkerFaceColor', color);
     end
     
+    % Tranform times into real units
+    times = times * dT;
+    data(i).times = times;
+    
     % Save profiles locally and on the server
     profilesPath = fullfile(outputDir, ['Profiles_' num2str(data(i).id) '.eps']);
     print(profilesFig, '-depsc', profilesPath);
@@ -300,10 +305,13 @@ for i = 1:numel(data)
     
     % Plot band position
     fluxFig = figure('Visible','off');
-    plot(times * dT, (dsignal-dsignal(1)) * pixelSize, 'ok');
-    coeff = polyfit((times + 1) * dT, (dsignal-dsignal(1)) * pixelSize, 1);
+    plot(times, (dsignal-dsignal(1)) * pixelSize, 'ok');
+    coeff_full = polyfit(times, (dsignal - dsignal(1)) * pixelSize, 1);
+    coeff_half = polyfit(times(1:end/2),...
+        (dsignal(1:end/2)-dsignal(1)) * pixelSize, 1);
     hold on
-    plot(times * dT, coeff(1) * (times + 1) * dT + coeff(2), '--k');
+    plot(times, coeff_half(1) * times + coeff_half(2), '-.k');
+    plot(times, coeff_full(1) * times + coeff_full(2), '--k');
     box on
     set(gca, 'LineWidth', 1.5, sfont{:}, 'Layer', 'top');
     xlabel('Time (s)', lfont{:});
@@ -316,25 +324,26 @@ for i = 1:numel(data)
     uploadFileResults(session, fluxPath, 'image', data(i).id, [ns '.flux']);
     
     % Print flux data
-    fprintf(1, 'Band speed: %g microns/min\n', abs(coeff(1)) * 60);
-    data(i).times = times * dT;
     data(i).position = (dsignal-dsignal(1)) * pixelSize;
-    data(i).speed = abs(coeff(1)) *60;
+    data(i).speed_half = abs(coeff_half(1)) * 60;
+    data(i).speed_full = abs(coeff_full(1)) * 60;
+    fprintf(1, 'Band speed (half range): %g microns/min\n', data(i).coeff_half);
+    fprintf(1, 'Band speed (full range): %g microns/min\n', data(i).coeff_full);
     
     %Fit function to ratio timeseries
     dI = Isignal - Isignal2;
     dInorm = dI/dI(1);
-    % [bFit,resFit,~,covFit,mseFit] = nlinfit(times*dT,dInorm,turnoverFn,...
+    % [bFit,resFit,~,covFit,mseFit] = nlinfit(times,dInorm,turnoverFn,...
     %    bInit,fitOptions);
     %Get confidence intervals of fit and fit values
-    %     [fitValues,deltaFit] = nlpredci(turnoverFn,times*dT,bFit,resFit,'covar',covFit,'mse',mseFit);
-    diffFn = @(p) turnoverFn(p, times*dT) - dInorm;
+    %     [fitValues,deltaFit] = nlpredci(turnoverFn,times,bFit,resFit,'covar',covFit,'mse',mseFit);
+    diffFn = @(p) turnoverFn(p, times) - dInorm;
     bFit = lsqnonlin(diffFn, bInit, lb, ub, opts);
     
     turnoverFig = figure('Visible','off');
-    plot(times * dT, dInorm, 'ok');
+    plot(times, dInorm, 'ok');
     hold on
-    plot(times * dT, turnoverFn(bFit, times*dT), '--k');
+    plot(times, turnoverFn(bFit, times), '--k');
     box on
     set(gca, 'LineWidth', 1.5, sfont{:}, 'Layer', 'top');
     xlabel('Time (s)', lfont{:});
@@ -416,20 +425,23 @@ uploadFileResults(session, intensitiesPath, 'dataset', datasetId, [ns '.intensit
 all_positions = horzcat(data.position);
 negative_slopes = all_positions(end, :) <0;
 all_positions(:, negative_slopes) = - all_positions(:, negative_slopes);
-coeff = polyfit(data(1).times, mean(all_positions, 2), 1);
-speed_mean = abs(coeff(1)) *60;
+all_positions_mean = mean(all_positions, 2);
+coeff = polyfit(data(1).times, all_positions_mean, 1);
+speed_full = abs(coeff(1)) *60;
+coeff = polyfit(data(1).times(1:end/2), all_positions_mean(1:end/2), 1);
+speed_half = abs(coeff(1)) *60;
 
 % Average and fit the normalized intensities
 allInorm = horzcat(data.dInorm);
 dInorm_mean = mean(allInorm, 2);
-diffFn = @(p) turnoverFn(p, times*dT) - dInorm_mean;
+diffFn = @(p) turnoverFn(p, data(1).times) - dInorm_mean;
 bFit = lsqnonlin(diffFn, bInit, lb, ub, opts);
 t1_mean = -1/bFit(2);
 t2_mean = -1/bFit(4);
 
 % Filter, average and fit the normalized intensities
 dInorm_filt = mean(allInorm(:, [data.t2]  < 1e10), 2);
-diffFn = @(p) turnoverFn(p, times*dT) - dInorm_filt;
+diffFn = @(p) turnoverFn(p, data(1).times) - dInorm_filt;
 bFit = lsqnonlin(diffFn, bInit, lb, ub, opts);
 t1_filt = -1/bFit(2);
 t2_filt = -1/bFit(4);
@@ -439,13 +451,15 @@ fprintf(1, 'Writing results for dataset %g\n', datasetId);
 resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
     num2str(datasetId) '.txt']);
 fid = fopen(resultsPath ,'w');
-fprintf(fid, 'Name\tId\tSpeed (microns/min)\tFast turnover time (s)\tSlow turnover time (s)\n');
+fprintf(fid, ['Name\tId\tFull-range speed (microns/min)\t'...
+    'Half-range speed (microns/min)\t'...
+    'Fast turnover time (s)\tSlow turnover time (s)\n']);
 for i = 1:numel(data),
-    fprintf(fid, '%s\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id, data(i).speed,...
-        data(i).t1, data(i).t2);
+    fprintf(fid, '%s\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id,...
+        data(i).speed_full, data(i).speed_half, data(i).t1, data(i).t2);
 end
 fprintf(fid, '\n');
-fprintf(fid, 'Average\t\t%g\t%g\t%g\n', speed_mean, t1_mean, t2_mean);
+fprintf(fid, 'Average\t\t%g\t%g\t%g\n', speed_full, speed_half, t1_mean, t2_mean);
 fprintf(fid, 'Average (filtered)\t\t\t%g\t%g\n', t1_filt, t2_filt);
 fclose(fid);
 
