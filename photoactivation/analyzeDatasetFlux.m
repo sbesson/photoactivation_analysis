@@ -310,7 +310,7 @@ for i = 1:numel(data)
     coeff_half = polyfit(times(1:end/2),...
         (dsignal(1:end/2)-dsignal(1)) * pixelSize, 1);
     hold on
-    plot(times, coeff_half(1) * times + coeff_half(2), '-.k');
+    plot(times(1:end/2), coeff_half(1) * times(1:end/2) + coeff_half(2), '-.k');
     plot(times, coeff_full(1) * times + coeff_full(2), '--k');
     box on
     set(gca, 'LineWidth', 1.5, sfont{:}, 'Layer', 'top');
@@ -327,8 +327,8 @@ for i = 1:numel(data)
     data(i).position = (dsignal-dsignal(1)) * pixelSize;
     data(i).speed_half = abs(coeff_half(1)) * 60;
     data(i).speed_full = abs(coeff_full(1)) * 60;
-    fprintf(1, 'Band speed (half range): %g microns/min\n', data(i).coeff_half);
-    fprintf(1, 'Band speed (full range): %g microns/min\n', data(i).coeff_full);
+    fprintf(1, 'Band speed (half range): %g microns/min\n', data(i).speed_half);
+    fprintf(1, 'Band speed (full range): %g microns/min\n', data(i).speed_full);
     
     %Fit function to ratio timeseries
     dI = Isignal - Isignal2;
@@ -455,7 +455,7 @@ fprintf(fid, ['Name\tId\tFull-range speed (microns/min)\t'...
     'Half-range speed (microns/min)\t'...
     'Fast turnover time (s)\tSlow turnover time (s)\n']);
 for i = 1:numel(data),
-    fprintf(fid, '%s\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id,...
+    fprintf(fid, '%s\t%g\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id,...
         data(i).speed_full, data(i).speed_half, data(i).t1, data(i).t2);
 end
 fprintf(fid, '\n');
