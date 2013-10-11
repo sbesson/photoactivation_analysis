@@ -459,8 +459,8 @@ for i = 1:numel(data),
         data(i).speed_full, data(i).speed_half, data(i).t1, data(i).t2);
 end
 fprintf(fid, '\n');
-fprintf(fid, 'Average\t\t%g\t%g\t%g\n', speed_full, speed_half, t1_mean, t2_mean);
-fprintf(fid, 'Average (filtered)\t\t\t%g\t%g\n', t1_filt, t2_filt);
+fprintf(fid, 'Average\t\t%g\t%g\t%g\t%g\n', speed_full, speed_half, t1_mean, t2_mean);
+fprintf(fid, 'Average (filtered)\t\t\t\t%g\t%g\n', t1_filt, t2_filt);
 fclose(fid);
 
 % Upload results file to OMERO
