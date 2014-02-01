@@ -2,7 +2,7 @@ function data = analyzeDatasetFlux(session, datasetId, varargin)
 
 
 ip = inputParser;
-ip.addRequired('datastId', @(x) isscalar(x) && isnumeric(x));
+ip.addRequired('datasetId', @(x) isscalar(x) && isnumeric(x));
 ip.addOptional('invalidIds', [], @(x) isnumeric(x) || isempty(x));
 ip.parse(datasetId, varargin{:});
 invalidIds = ip.Results.invalidIds;
@@ -20,10 +20,10 @@ sfont = {'FontName', 'Helvetica', 'FontSize', 18};
 lfont = {'FontName', 'Helvetica', 'FontSize', 22};
 
 %Double-exponential function for fitting
-turnoverFn = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x));
-bInit = [.8 -.1 .2 -0.01];
-lb = [0 -Inf 0 -Inf];
-ub = [1.2 0 1.2 0];
+turnoverFn = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x)) +b(5);
+bInit = [.8 -.1 .2 -0.01 0];
+lb = [0 -Inf 0 -Inf 0];
+ub = [1.2 0 1.2 0 .2];
 
 fitOptions = statset('Robust','on','MaxIter',500,'Display','off');
 
@@ -338,7 +338,8 @@ for i = 1:numel(data)
     %Get confidence intervals of fit and fit values
     %     [fitValues,deltaFit] = nlpredci(turnoverFn,times,bFit,resFit,'covar',covFit,'mse',mseFit);
     diffFn = @(p) turnoverFn(p, times) - dInorm;
-    bFit = lsqnonlin(diffFn, bInit, lb, ub, opts);
+    [bFit, resnorm] = lsqnonlin(diffFn, bInit, lb, ub, opts);
+    data(i).r2 = 1 - resnorm / norm(dInorm-mean(dInorm))^2;
     
     turnoverFig = figure('Visible','off');
     plot(times, dInorm, 'ok');
@@ -425,26 +426,48 @@ uploadFileResults(session, intensitiesPath, 'dataset', datasetId, [ns '.intensit
 all_positions = horzcat(data.position);
 negative_slopes = all_positions(end, :) <0;
 all_positions(:, negative_slopes) = - all_positions(:, negative_slopes);
-all_positions_mean = mean(all_positions, 2);
-coeff = polyfit(data(1).times, all_positions_mean, 1);
-speed_full = abs(coeff(1)) *60;
-coeff = polyfit(data(1).times(1:end/2), all_positions_mean(1:end/2), 1);
-speed_half = abs(coeff(1)) *60;
+
+
+% Create filters
+longtimes_filter = [data.t2]  < 1e10;
+r2_filter_0 = [data.r2] >= 0;
+r2_filter_90 = [data.r2] >= .9;
+r2_filter_95 = [data.r2] >= .95;
+filters(1).name = 'Unfiltered';
+filters(1).values = ones(size([data.t2]));
+filters(2).name = 'Long times';
+filters(2).values = longtimes_filter & r2_filter_0;
+filters(3).name = 'Long times & .90';
+filters(3).values = longtimes_filter & r2_filter_90;
+filters(4).name = 'Long times & .95 ';
+filters(4).values = longtimes_filter & r2_filter_95;
+filters(5).name = '.90 ';
+filters(5).values = r2_filter_90;
+filters(6).name = '.95 ';
+filters(6).values = r2_filter_95;
 
 % Average and fit the normalized intensities
 allInorm = horzcat(data.dInorm);
-dInorm_mean = mean(allInorm, 2);
-diffFn = @(p) turnoverFn(p, data(1).times) - dInorm_mean;
-bFit = lsqnonlin(diffFn, bInit, lb, ub, opts);
-t1_mean = -1/bFit(2);
-t2_mean = -1/bFit(4);
-
-% Filter, average and fit the normalized intensities
-dInorm_filt = mean(allInorm(:, [data.t2]  < 1e10), 2);
-diffFn = @(p) turnoverFn(p, data(1).times) - dInorm_filt;
-bFit = lsqnonlin(diffFn, bInit, lb, ub, opts);
-t1_filt = -1/bFit(2);
-t2_filt = -1/bFit(4);
+speed_full =  zeros(numel(filters), 1);
+speed_half =  zeros(numel(filters), 1);
+t1_filt = zeros(numel(filters), 1);
+t2_filt = zeros(numel(filters), 1);
+r2_filt = zeros(numel(filters), 1);
+for iFilter = 1: numel(filters)
+    % Calculate speed for the mean positions
+    all_positions_filt = mean(all_positions(:, filters(iFilter).values), 2);
+    coeff = polyfit(data(1).times, all_positions_filt, 1);
+    speed_full(iFilter) = abs(coeff(1)) *60;
+    coeff = polyfit(data(1).times(1:end/2), all_positions_filt(1:end/2), 1);
+    speed_half(iFilter) = abs(coeff(1)) *60;
+    
+    dInorm_filt = mean(allInorm(:, filters(iFilter).values), 2);
+    diffFn = @(p) turnoverFn(p, data(1).times) - dInorm_filt;
+    [bFit, resnorm] = lsqnonlin(diffFn, bInit, lb, ub, opts);
+    t1_filt(iFilter) = -1/bFit(2);
+    t2_filt(iFilter) = -1/bFit(4);
+    r2_filt(iFilter) = 1 - resnorm / norm(dInorm_filt-mean(dInorm_filt))^2;
+end
 
 % Create results table
 fprintf(1, 'Writing results for dataset %g\n', datasetId);
@@ -453,14 +476,18 @@ resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
 fid = fopen(resultsPath ,'w');
 fprintf(fid, ['Name\tId\tFull-range speed (microns/min)\t'...
     'Half-range speed (microns/min)\t'...
-    'Fast turnover time (s)\tSlow turnover time (s)\n']);
+    'Fast turnover time (s)\tSlow turnover time (s)\tr2\n']);
 for i = 1:numel(data),
-    fprintf(fid, '%s\t%g\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id,...
-        data(i).speed_full, data(i).speed_half, data(i).t1, data(i).t2);
+    fprintf(fid, '%s\t%g\t%g\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id,...
+        data(i).speed_full, data(i).speed_half, data(i).t1, data(i).t2,...
+        data(i).r2);
 end
 fprintf(fid, '\n');
-fprintf(fid, 'Average\t\t%g\t%g\t%g\t%g\n', speed_full, speed_half, t1_mean, t2_mean);
-fprintf(fid, 'Average (filtered)\t\t\t\t%g\t%g\n', t1_filt, t2_filt);
+fprintf(fid, 'Filtered averages\n');
+for i = 1 : numel(filters)
+    fprintf(fid, '%s\t\t%g\t%g\t%g\t%g\t%g\n', filters(i).name,...
+        speed_full(i), speed_half(i), t1_filt(i), t2_filt(i), r2_filt(i));
+end
 fclose(fid);
 
 % Upload results file to OMERO
