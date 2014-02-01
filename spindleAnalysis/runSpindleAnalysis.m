@@ -19,6 +19,10 @@ conditions =  cell2struct(conditionsDirs, 'name');
 nConditions = numel(conditions);
 fileLog = cell(nConditions, 1);
 
+% Create output folder for aligned data
+alignedDataPath = fullfile(dataPath, 'AlignedData');
+if ~isdir(alignedDataPath), mkdir(alignedDataPath); end
+
 % Alignment parameters
 minSpindleLength = 6; % minimum spindle length (in microns)
 sigma = 3; % Sigma to exclude outliers (using final spindle length)
@@ -142,6 +146,19 @@ for iCondition = 1:nConditions
     conditions(iCondition).alignedTimes = alignedTimes;
     conditions(iCondition).alignedData = alignedData;
     
+    % Export aligned series into TXT format
+    dlmwrite(fullfile(alignedDataPath, [conditions(iCondition).name '-alignedData-raw.txt']),...
+        [conditions(iCondition).alignedTimes...
+        conditions(iCondition).alignedData], '\t');
+    
+    % Export aligned series into TXT format
+    alignedmean = nanmean(conditions(iCondition).alignedData,2);
+    alignedstd = nanstd(conditions(iCondition).alignedData, [], 2);
+    nPoints  =sum(~isnan(conditions(iCondition).alignedData),2);
+    alignedste = alignedstd./sqrt(nPoints);
+    dlmwrite(fullfile(alignedDataPath, [conditions(iCondition).name '-alignedData-MeanStdSte.txt']),...
+        [conditions(iCondition).alignedTimes alignedmean alignedstd...
+        alignedste], '\t');
     
     % Display and save full log
     disp([fileLog{iCondition} seriesLog{:}])
