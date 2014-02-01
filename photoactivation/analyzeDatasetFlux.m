@@ -483,10 +483,13 @@ for i = 1:numel(data),
         data(i).r2);
 end
 fprintf(fid, '\n');
-fprintf(fid, 'Filtered averages\n');
+fprintf(fid, ['Filter\tnCells\tFull-range speed (microns/min)\t'...
+    'Half-range speed (microns/min)\t'...
+    'Fast turnover time (s)\tSlow turnover time (s)\tr2\n']);
 for i = 1 : numel(filters)
-    fprintf(fid, '%s\t\t%g\t%g\t%g\t%g\t%g\n', filters(i).name,...
-        speed_full(i), speed_half(i), t1_filt(i), t2_filt(i), r2_filt(i));
+    fprintf(fid, '%s\t%s\t%g\t%g\t%g\t%g\t%g\n', filters(i).name,...
+        sum(filters(i).values), speed_full(i), speed_half(i),...
+        t1_filt(i), t2_filt(i), r2_filt(i));
 end
 fclose(fid);
 
