@@ -7,12 +7,16 @@ dataPath = uigetdir('Select the main directory');
 % dataPath = '/Users/sebastien/Desktop/Bipolar spindle assembly assay';
 if isequal(dataPath, 0), return; end
 
+% Create output folder for aligned data
+alignedDataPath = fullfile(dataPath, 'AlignedData');
+
 % Read conditions from folder names
 directories  = dir(dataPath);
 directories = directories([directories.isdir]);
 conditionsDirs = {directories.name};
 dotDirs = strcmp(conditionsDirs, '.')  | strcmp(conditionsDirs, '..');
 conditionsDirs(dotDirs) = [];
+conditionsDirs(strcmp(conditionsDirs, 'AlignedData')) = [];
 
 % Initialize output structure array
 conditions =  cell2struct(conditionsDirs, 'name');
@@ -20,7 +24,6 @@ nConditions = numel(conditions);
 fileLog = cell(nConditions, 1);
 
 % Create output folder for aligned data
-alignedDataPath = fullfile(dataPath, 'AlignedData');
 if ~isdir(alignedDataPath), mkdir(alignedDataPath); end
 
 % Alignment parameters
