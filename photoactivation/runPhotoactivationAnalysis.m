@@ -15,12 +15,17 @@ inputString = ['Specify the name of the group  [default: ' defaultgroup ']: '];
 groupName = input(inputString, 's');
 if isempty(groupName), groupName = defaultgroup; end
 
+
+% Define id of projects or datasets to be analyzed
+corrId = input('Specify the ids of the photobleaching dataset:');
+assert(isempty(corrId) || isscalar(corrId), 'Only one photobleaching Id allowed');
+
 % Define id of projects or datasets to be analyzed
 ids = input('Specify the ids of the projects or datasets to analyze:');
 assert(~isempty(ids), 'No ids selected');
 
 % Wrong images (to exclude from the analysis)
-invalidIds = [3991, 3412];
+invalidIds = [3991, 3412, photoactivationId];
 %% OMERO.matlab initialization
 
 % Create client/session
@@ -37,8 +42,8 @@ session.setSecurityContext(group);
 
 %%
 
+% List project or dataset IDs
 project = getProjects(session, ids, false);
-
 if ~isempty(project)
     fprintf(1, 'Loading datasets from project %g\n', ids);
     datasets = toMatlabList(project.linkedDatasetList);
@@ -46,6 +51,12 @@ if ~isempty(project)
 else
     datasetIds = ids;
 end
+
+% Run the analysis on 
+% if ~isempty(corrId)
+%     phoactivationData = analyzeDatasetFlux(session, photoactivationId);
+%     photoactivationCorrection = mean(horzcat(data.dInorm), 2);
+% end
 
 try
     for datasetId = datasetIds
