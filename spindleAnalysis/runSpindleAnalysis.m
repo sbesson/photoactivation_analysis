@@ -238,13 +238,13 @@ for iGraph = 1 : nGraphs
     
     plotBoxPlots({conditions(conditions2plot).(graph_map{iGraph, 1})},...
         {conditions(conditions2plot).name}, graph_map{iGraph, 2});
-    exportFigure(conditionFig, dataPath, graph_map{iGraph, 1});
+    exportFigure(conditionFig, alignedDataPath, graph_map{iGraph, 1});
     clf(conditionFig);
 end
 
 % Generated all conditions comparison
 plotMeanAlignedData(conditions(conditions2plot))
-exportFigure(conditionFig, dataPath, 'All conditions');
+exportFigure(conditionFig, alignedDataPath, 'All conditions');
 clf(conditionFig);
 
 % % Generate 2 by 2 graph comparisons
