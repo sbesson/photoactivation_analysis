@@ -3,8 +3,10 @@ function data = analyzeDatasetFlux(session, datasetId, varargin)
 
 ip = inputParser;
 ip.addRequired('datasetId', @(x) isscalar(x) && isnumeric(x));
-ip.addOptional('invalidIds', [], @(x) isnumeric(x) || isempty(x));
+ip.addOptional('corrData', [], @(x) isnumeric(x) || isempty(x));
+ip.addParamValue('invalidIds', [], @(x) isnumeric(x) || isempty(x));
 ip.parse(datasetId, varargin{:});
+corrData = ip.Results.corrData;
 invalidIds = ip.Results.invalidIds;
 
 %%
@@ -178,6 +180,8 @@ for i = 1:numel(data)
     dL = (dx0.^2 + dy0.^2).^(.5);
     P = dL .* cos((repmat(alpha,1,nPoints) - alpha0)*pi/180);
     d_centrosomes = diff(P, [], 2);
+    
+    heat_map = NaN(numel(times), round(d_centrosomes));
     for iT = 1 : numel(times)
         t = times(iT);
         color = colors(iT, :);
@@ -198,6 +202,7 @@ for i = 1:numel(data)
         figure('Visible','off');
         hold on
         plot(x, R, 'Color', color);
+        heat_map(iT, (1:numel(R))) = R;
         
         % Calculating background
         Ifilt= filterGauss2D(I,5);
@@ -333,6 +338,10 @@ for i = 1:numel(data)
     %Fit function to ratio timeseries
     dI = Isignal - Isignal2;
     dInorm = dI/dI(1);
+    
+    if ~isempty(corrData),
+        dInorm = dInorm + (1 - corrData);
+    end
     % [bFit,resFit,~,covFit,mseFit] = nlinfit(times,dInorm,turnoverFn,...
     %    bInit,fitOptions);
     %Get confidence intervals of fit and fit values
