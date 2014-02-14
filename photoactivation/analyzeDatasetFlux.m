@@ -163,8 +163,10 @@ for i = 1:numel(data)
     nTimes = numel(times);
     Ibkg = zeros(nTimes, 1);
     Isignal = zeros(nTimes, 1);
+    Asignal = zeros(nTimes, 1);
     dsignal = zeros(nTimes, 1);
     Isignal2 = zeros(nTimes, 1);
+    Asignal2 = zeros(nTimes, 1);
     dsignal2 = zeros(nTimes, 1);
     
     colors = hsv(nTimes+1);
@@ -245,6 +247,8 @@ for i = 1:numel(data)
             [50 max(dR(signalrange)) 20 0],'xAs');
         % Isignal(iT) = sqrt(2*pi) * p(3) *p(2); % Integrated intensity
         Isignal(iT) = p(2); % Amplitude
+        % norm_int = @(x) erf(x/(p(3)*sqrt(2)));
+        % Isignal(iT) = p(2) * (norm_int(sigma) - norm_int(-sigma))/2;
         dsignal(iT) = p(1); %position
         signal_fit =  exp(-(d-p(1)).^2./(2*p(3)^2))*p(2) + p(4);
         fprintf(1, 'Primary signal detected at position %g with intensity %g\n',...
@@ -272,6 +276,7 @@ for i = 1:numel(data)
                     [mean(d(signal2range)) max(residuals(signal2range)) 20 0],'xAs');
                 signal2_fit =  exp(-(d-p2(1)).^2./(2*p2(3)^2))*p2(2) + p2(4);
                 % Isignal2(iT) = sqrt(2*pi) * p2(3) *p2(2); % integrated
+                % Isignal2(iT) = p2(2) * (norm_int(p2(3)) - norm_int(-p2(3)))/2;
                 Isignal2(iT) = p2(2); % amplitude
                 dsignal2(iT) = p2(1);
                 fprintf(1, 'Secondary signal maximum detected at position %g with intensity %g\n',...
@@ -308,6 +313,14 @@ for i = 1:numel(data)
     close(profilesFig)
     uploadFileResults(session, profilesPath, 'image',  data(i).id, [ns '.profiles']);
     
+    % Plot heat map
+    heatMapFig = figure('Visible','off');
+    heatMapPath = fullfile(outputDir, ['HeatMap_' num2str(data(i).id) '.eps']);
+    imagesc(heat_map);
+    print(heatMapFig, '-depsc', heatMapPath);
+    close(heatMapFig)
+    uploadFileResults(session, heatMapPath, 'image', data(i).id, [ns '.heatmap'])
+    
     % Plot band position
     fluxFig = figure('Visible','off');
     plot(times, (dsignal-dsignal(1)) * pixelSize, 'ok');
@@ -339,9 +352,6 @@ for i = 1:numel(data)
     dI = Isignal - Isignal2;
     dInorm = dI/dI(1);
     
-    if ~isempty(corrData),
-        dInorm = dInorm + (1 - corrData);
-    end
     % [bFit,resFit,~,covFit,mseFit] = nlinfit(times,dInorm,turnoverFn,...
     %    bInit,fitOptions);
     %Get confidence intervals of fit and fit values
@@ -349,6 +359,14 @@ for i = 1:numel(data)
     diffFn = @(p) turnoverFn(p, times) - dInorm;
     [bFit, resnorm] = lsqnonlin(diffFn, bInit, lb, ub, opts);
     data(i).r2 = 1 - resnorm / norm(dInorm-mean(dInorm))^2;
+    
+    % Save turnover results locally
+    data(i).dInorm = dInorm;
+    data(i).t1 = -1/bFit(2);
+    data(i).t2 = -1/bFit(4);
+    fprintf(1, 'Fast turnover time: %g s\n', data(i).t1);
+    fprintf(1, 'Slow turnover time: %g s\n', data(i).t2);
+    
     
     turnoverFig = figure('Visible','off');
     plot(times, dInorm, 'ok');
@@ -361,12 +379,17 @@ for i = 1:numel(data)
     limits = ylim();
     ylim([0 limits(2)]);
     
-    % Save turnover results locally
-    data(i).dInorm = dInorm;
-    data(i).t1 = -1/bFit(2);
-    data(i).t2 = -1/bFit(4);
-    fprintf(1, 'Fast turnover time: %g s\n', data(i).t1);
-    fprintf(1, 'Slow turnover time: %g s\n', data(i).t2);
+    % Compute corr
+    if ~isempty(corrData);
+        dInorm_corr = dInorm./corrData;
+        diffFn = @(p) turnoverFn(p, times) - dInorm_corr;
+        [bFit, resnorm] = lsqnonlin(diffFn, bInit, lb, ub, opts);
+        data(i).dInorm_corr = dInorm_corr;
+        data(i).r2_corr = 1 - resnorm / norm(dInorm_corr-mean(dInorm_corr))^2;
+        data(i).t1_corr = -1/bFit(2);
+        data(i).t2_corr = -1/bFit(4);
+        plot(times, dInorm_corr, 'or');
+    end
     
     % Save flux results locally and on the server
     turnoverPath = fullfile(outputDir, ['Turnover_' num2str(data(i).id) '.eps']);
@@ -456,51 +479,63 @@ filters(6).name = '.95 ';
 filters(6).values = r2_filter_95;
 
 % Average and fit the normalized intensities
-allInorm = horzcat(data.dInorm);
-speed_full =  zeros(numel(filters), 1);
-speed_half =  zeros(numel(filters), 1);
-t1_filt = zeros(numel(filters), 1);
-t2_filt = zeros(numel(filters), 1);
-r2_filt = zeros(numel(filters), 1);
-for iFilter = 1: numel(filters)
-    % Calculate speed for the mean positions
-    all_positions_filt = mean(all_positions(:, filters(iFilter).values), 2);
-    coeff = polyfit(data(1).times, all_positions_filt, 1);
-    speed_full(iFilter) = abs(coeff(1)) *60;
-    coeff = polyfit(data(1).times(1:end/2), all_positions_filt(1:end/2), 1);
-    speed_half(iFilter) = abs(coeff(1)) *60;
+if ~isempty(corrData)
+    result_type = {'', '_corrected'};
+    allInorm = cell(numel(result_type), 1);
+    allInorm{1} = horzcat(data.dInorm);
+    allInorm{2} = horzcat(data.dInorm_corr);
+else
+    result_type = {''};
+    allInorm = {horzcat(data.dInorm)};
+end
+
+for iType = 1 : numel(result_type)
+    speed_full =  zeros(numel(filters), 1);
+    speed_half =  zeros(numel(filters), 1);
+    t1_filt = zeros(numel(filters), 1);
+    t2_filt = zeros(numel(filters), 1);
+    r2_filt = zeros(numel(filters), 1);
+    for iFilter = 1: numel(filters)
+        % Calculate speed for the mean positions
+        all_positions_filt = mean(all_positions(:, filters(iFilter).values), 2);
+        coeff = polyfit(data(1).times, all_positions_filt, 1);
+        speed_full(iFilter) = abs(coeff(1)) *60;
+        coeff = polyfit(data(1).times(1:end/2), all_positions_filt(1:end/2), 1);
+        speed_half(iFilter) = abs(coeff(1)) *60;
+        
+        dInorm_filt = mean(allInorm{iType}(:, filters(iFilter).values), 2);
+        diffFn = @(p) turnoverFn(p, data(1).times) - dInorm_filt;
+        [bFit, resnorm] = lsqnonlin(diffFn, bInit, lb, ub, opts);
+        t1_filt(iFilter) = -1/bFit(2);
+        t2_filt(iFilter) = -1/bFit(4);
+        r2_filt(iFilter) = 1 - resnorm / norm(dInorm_filt-mean(dInorm_filt))^2;
+    end
     
-    dInorm_filt = mean(allInorm(:, filters(iFilter).values), 2);
-    diffFn = @(p) turnoverFn(p, data(1).times) - dInorm_filt;
-    [bFit, resnorm] = lsqnonlin(diffFn, bInit, lb, ub, opts);
-    t1_filt(iFilter) = -1/bFit(2);
-    t2_filt(iFilter) = -1/bFit(4);
-    r2_filt(iFilter) = 1 - resnorm / norm(dInorm_filt-mean(dInorm_filt))^2;
+    % Create results table
+    fprintf(1, 'Writing resultsfor dataset %g\n', datasetId);
+    resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
+         result_type{iType} num2str(datasetId) '.txt']);
+    fid = fopen(resultsPath ,'w');
+    fprintf(fid, ['Name\tId\tFull-range speed (microns/min)\t'...
+        'Half-range speed (microns/min)\t'...
+        'Fast turnover time (s)\tSlow turnover time (s)\tr2\n']);
+    for i = 1:numel(data),
+        fprintf(fid, '%s\t%g\t%g\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id,...
+            data(i).speed_full, data(i).speed_half, data(i).t1, data(i).t2,...
+            data(i).r2);
+    end
+    fprintf(fid, '\n');
+    fprintf(fid, ['Filter\tnCells\tFull-range speed (microns/min)\t'...
+        'Half-range speed (microns/min)\t'...
+        'Fast turnover time (s)\tSlow turnover time (s)\tr2\n']);
+    for i = 1 : numel(filters)
+        fprintf(fid, '%s\t%s\t%g\t%g\t%g\t%g\t%g\n', filters(i).name,...
+            sum(filters(i).values), speed_full(i), speed_half(i),...
+            t1_filt(i), t2_filt(i), r2_filt(i));
+    end
+    fclose(fid);
+    
+    % Upload results file to OMERO
+    uploadFileResults(session, resultsPath, 'dataset', datasetId,...
+        [ns '.results' result_type{iType}]);
 end
-
-% Create results table
-fprintf(1, 'Writing results for dataset %g\n', datasetId);
-resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
-    num2str(datasetId) '.txt']);
-fid = fopen(resultsPath ,'w');
-fprintf(fid, ['Name\tId\tFull-range speed (microns/min)\t'...
-    'Half-range speed (microns/min)\t'...
-    'Fast turnover time (s)\tSlow turnover time (s)\tr2\n']);
-for i = 1:numel(data),
-    fprintf(fid, '%s\t%g\t%g\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id,...
-        data(i).speed_full, data(i).speed_half, data(i).t1, data(i).t2,...
-        data(i).r2);
-end
-fprintf(fid, '\n');
-fprintf(fid, ['Filter\tnCells\tFull-range speed (microns/min)\t'...
-    'Half-range speed (microns/min)\t'...
-    'Fast turnover time (s)\tSlow turnover time (s)\tr2\n']);
-for i = 1 : numel(filters)
-    fprintf(fid, '%s\t%s\t%g\t%g\t%g\t%g\t%g\n', filters(i).name,...
-        sum(filters(i).values), speed_full(i), speed_half(i),...
-        t1_filt(i), t2_filt(i), r2_filt(i));
-end
-fclose(fid);
-
-% Upload results file to OMERO
-uploadFileResults(session, resultsPath, 'dataset', datasetId, [ns '.results']);

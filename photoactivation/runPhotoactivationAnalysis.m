@@ -34,7 +34,7 @@ if ~isempty(corrId),
 end
     
 % Wrong images (to exclude from the analysis)
-invalidIds = [3991, 3412, corrId];
+invalidIds = [3991, 3412, 6170, corrId];
 %% OMERO.matlab initialization
 
 % Create client/session
@@ -46,7 +46,7 @@ fprintf(1, 'Created session for user %s using group %s\n',...
 
 
 %%
-if ~isempty(corrId)
+if ~isempty(corrId) && ~ismember(corrId, ids)
     % Change group
     disp('Changing group')
     corrGroup = session.getAdminService.lookupGroup(corrGroupName);
@@ -63,6 +63,8 @@ if ~isempty(corrId)
     % Read correction data
     corrData = dlmread(outputFile, '\t', 1, 1);
     meanCorrDat = mean(corrData, 2);
+else
+    meanCorrData = [];
 end
 
 %%
