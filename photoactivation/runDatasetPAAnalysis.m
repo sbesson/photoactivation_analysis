@@ -1,4 +1,4 @@
-function data = analyzeDatasetFlux(session, datasetId, varargin)
+function data = runDatasetPAAnalysis(session, datasetId, varargin)
 
 
 ip = inputParser;
@@ -204,7 +204,6 @@ for i = 1:numel(data)
         figure('Visible','off');
         hold on
         plot(x, R, 'Color', color);
-        heat_map(iT, (1:numel(R))) = R;
         
         % Calculating background
         Ifilt= filterGauss2D(I,5);
@@ -226,7 +225,10 @@ for i = 1:numel(data)
         d = x-P(iT, 1);
         plot(d, dR, 'Color', color);
         xlim([0 max(d_centrosomes)])
-        
+        i0 = find(round(d)==0);
+        dmax = round(max(d_centrosomes));
+        heat_map(iT, (1:dmax)) = R(i0:(i0 + dmax -1));
+
         % Integrate intensity
         if iT == 1
             % Look for absolute maximum on the first frame
@@ -246,9 +248,9 @@ for i = 1:numel(data)
         p = fitGaussian1D(d(signalrange), dR(signalrange),...
             [50 max(dR(signalrange)) 20 0],'xAs');
         % Isignal(iT) = sqrt(2*pi) * p(3) *p(2); % Integrated intensity
-        Isignal(iT) = p(2); % Amplitude
-        % norm_int = @(x) erf(x/(p(3)*sqrt(2)));
-        % Isignal(iT) = p(2) * (norm_int(sigma) - norm_int(-sigma))/2;
+        Asignal(iT) = p(2); % Amplitude
+        norm_int = @(x) erf(x/(p(3)*sqrt(2)));
+        Isignal(iT) = p(2) * (norm_int(p(3)) - norm_int(-p(3)))/2;
         dsignal(iT) = p(1); %position
         signal_fit =  exp(-(d-p(1)).^2./(2*p(3)^2))*p(2) + p(4);
         fprintf(1, 'Primary signal detected at position %g with intensity %g\n',...
@@ -268,6 +270,7 @@ for i = 1:numel(data)
         if ~any(signal2range) || max(residuals(signal2range)) < 0.05 * Isignal(iT),
             disp('No secondary signal  detected');
             signal2_fit = zeros(size(d));
+            Asignal2(iT) = 0;
             Isignal2(iT) = 0; % amplitude
             dsignal2(iT) = 0;
         else
@@ -276,14 +279,15 @@ for i = 1:numel(data)
                     [mean(d(signal2range)) max(residuals(signal2range)) 20 0],'xAs');
                 signal2_fit =  exp(-(d-p2(1)).^2./(2*p2(3)^2))*p2(2) + p2(4);
                 % Isignal2(iT) = sqrt(2*pi) * p2(3) *p2(2); % integrated
-                % Isignal2(iT) = p2(2) * (norm_int(p2(3)) - norm_int(-p2(3)))/2;
-                Isignal2(iT) = p2(2); % amplitude
+                Isignal2(iT) = p2(2) * (norm_int(p2(3)) - norm_int(-p2(3)))/2;
+                Asignal2(iT) = p2(2); % amplitude
                 dsignal2(iT) = p2(1);
                 fprintf(1, 'Secondary signal maximum detected at position %g with intensity %g\n',...
                     dsignal2(iT), Isignal2(iT));
             catch ME
                 disp(ME.message);
                 signal2_fit = zeros(size(d));
+                Asignal2(iT) = 0;
                 Isignal2(iT) = 0; % amplitude
                 dsignal2(iT) = 0;
             end
@@ -349,7 +353,7 @@ for i = 1:numel(data)
     fprintf(1, 'Band speed (full range): %g microns/min\n', data(i).speed_full);
     
     %Fit function to ratio timeseries
-    dI = Isignal - Isignal2;
+    dI = Asignal - Asignal2;
     dInorm = dI/dI(1);
     
     % [bFit,resFit,~,covFit,mseFit] = nlinfit(times,dInorm,turnoverFn,...
@@ -407,135 +411,4 @@ outputDir = fullfile(mainOutputDir, num2str(datasetId));
 if isdir(outputDir), rmdir(outputDir, 's'); end
 mkdir(outputDir);
 
-validData = arrayfun(@(x) ~isempty(x.position), data);
-
-% Save positions table
-fprintf(1, 'Writing positions for dataset %g\n', datasetId);
-positionsPath = fullfile(outputDir, ['Positions_' num2str(datasetId) '.txt']);
-fid = fopen(positionsPath ,'w');
-
-fprintf(fid, 'Times\t');
-for i = find(validData)',
-    fprintf(fid, '\t%s', data(i).name);
-end
-fprintf(fid, '\n');
-for t = 1: numel(data(1).times),
-    fprintf(fid, '%g', data(1).times(t));
-    for j = find(validData)',
-        fprintf(fid, '\t%g', data(j).position(t));
-    end
-    fprintf(fid, '\n');
-end
-fclose(fid);
-
-% Create results table
-uploadFileResults(session, positionsPath, 'dataset', datasetId, [ns '.positions']);
-
-
-% Save intensity table
-fprintf(1, 'Writing intensities for dataset %g\n', datasetId);
-intensitiesPath = fullfile(outputDir, ['Intensities_' num2str(datasetId) '.txt']);
-fid = fopen(intensitiesPath ,'w');
-
-fprintf(fid, 'Times\t');
-for i = find(validData)',
-    fprintf(fid, '\t%s', data(i).name);
-end
-fprintf(fid, '\n');
-for t = 1: numel(data(1).times),
-    fprintf(fid, '%g', data(1).times(t));
-    for j = find(validData)',
-        fprintf(fid, '\t%g', data(j).dInorm(t));
-    end
-    fprintf(fid, '\n');
-end
-fclose(fid);
-
-% Create results table
-uploadFileResults(session, intensitiesPath, 'dataset', datasetId, [ns '.intensities']);
-
-% Calculate speed for the mean positions
-all_positions = horzcat(data.position);
-negative_slopes = all_positions(end, :) <0;
-all_positions(:, negative_slopes) = - all_positions(:, negative_slopes);
-
-
-% Create filters
-longtimes_filter = [data.t2]  < 1e10;
-r2_filter_0 = [data.r2] >= 0;
-r2_filter_90 = [data.r2] >= .9;
-r2_filter_95 = [data.r2] >= .95;
-filters(1).name = 'Unfiltered';
-filters(1).values = ones(size([data.t2]));
-filters(2).name = 'Long times';
-filters(2).values = longtimes_filter & r2_filter_0;
-filters(3).name = 'Long times & .90';
-filters(3).values = longtimes_filter & r2_filter_90;
-filters(4).name = 'Long times & .95 ';
-filters(4).values = longtimes_filter & r2_filter_95;
-filters(5).name = '.90 ';
-filters(5).values = r2_filter_90;
-filters(6).name = '.95 ';
-filters(6).values = r2_filter_95;
-
-% Average and fit the normalized intensities
-if ~isempty(corrData)
-    result_type = {'', '_corrected'};
-    allInorm = cell(numel(result_type), 1);
-    allInorm{1} = horzcat(data.dInorm);
-    allInorm{2} = horzcat(data.dInorm_corr);
-else
-    result_type = {''};
-    allInorm = {horzcat(data.dInorm)};
-end
-
-for iType = 1 : numel(result_type)
-    speed_full =  zeros(numel(filters), 1);
-    speed_half =  zeros(numel(filters), 1);
-    t1_filt = zeros(numel(filters), 1);
-    t2_filt = zeros(numel(filters), 1);
-    r2_filt = zeros(numel(filters), 1);
-    for iFilter = 1: numel(filters)
-        % Calculate speed for the mean positions
-        all_positions_filt = mean(all_positions(:, filters(iFilter).values), 2);
-        coeff = polyfit(data(1).times, all_positions_filt, 1);
-        speed_full(iFilter) = abs(coeff(1)) *60;
-        coeff = polyfit(data(1).times(1:end/2), all_positions_filt(1:end/2), 1);
-        speed_half(iFilter) = abs(coeff(1)) *60;
-        
-        dInorm_filt = mean(allInorm{iType}(:, filters(iFilter).values), 2);
-        diffFn = @(p) turnoverFn(p, data(1).times) - dInorm_filt;
-        [bFit, resnorm] = lsqnonlin(diffFn, bInit, lb, ub, opts);
-        t1_filt(iFilter) = -1/bFit(2);
-        t2_filt(iFilter) = -1/bFit(4);
-        r2_filt(iFilter) = 1 - resnorm / norm(dInorm_filt-mean(dInorm_filt))^2;
-    end
-    
-    % Create results table
-    fprintf(1, 'Writing resultsfor dataset %g\n', datasetId);
-    resultsPath = fullfile(outputDir, ['Photoactivation_results_'...
-         result_type{iType} num2str(datasetId) '.txt']);
-    fid = fopen(resultsPath ,'w');
-    fprintf(fid, ['Name\tId\tFull-range speed (microns/min)\t'...
-        'Half-range speed (microns/min)\t'...
-        'Fast turnover time (s)\tSlow turnover time (s)\tr2\n']);
-    for i = 1:numel(data),
-        fprintf(fid, '%s\t%g\t%g\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id,...
-            data(i).speed_full, data(i).speed_half, data(i).t1, data(i).t2,...
-            data(i).r2);
-    end
-    fprintf(fid, '\n');
-    fprintf(fid, ['Filter\tnCells\tFull-range speed (microns/min)\t'...
-        'Half-range speed (microns/min)\t'...
-        'Fast turnover time (s)\tSlow turnover time (s)\tr2\n']);
-    for i = 1 : numel(filters)
-        fprintf(fid, '%s\t%s\t%g\t%g\t%g\t%g\t%g\n', filters(i).name,...
-            sum(filters(i).values), speed_full(i), speed_half(i),...
-            t1_filt(i), t2_filt(i), r2_filt(i));
-    end
-    fclose(fid);
-    
-    % Upload results file to OMERO
-    uploadFileResults(session, resultsPath, 'dataset', datasetId,...
-        [ns '.results' result_type{iType}]);
-end
+save(fullfile(outputDir, 'analysis.mat'), 'data');

@@ -34,7 +34,7 @@ if ~isempty(corrId),
 end
     
 % Wrong images (to exclude from the analysis)
-invalidIds = [3991, 3412, 6170, corrId];
+invalidIds = [3991, 3412, 6170, 3547, corrId];
 %% OMERO.matlab initialization
 
 % Create client/session
@@ -86,8 +86,9 @@ end
 
 try
     for datasetId = datasetIds
-        analyzeDatasetFlux(session, datasetId, meanCorrDat,...
-            'invalidIds', invalidIds);
+%         runDatasetPAAnalysis(session, datasetId, meanCorrDat,...
+%             'invalidIds', invalidIds);
+        combineDatasetPAAnalysis(session, datasetId);
     end
 catch ME
     fprintf(1, 'Error while analyzing dataset %g: %s\n', datasetId, ME.message);
