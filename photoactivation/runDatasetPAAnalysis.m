@@ -17,24 +17,8 @@ mainOutputDir = fullfile(getenv('HOME'), 'omero');
 ns = 'photoactivation';
 
 % define small and large fonts for graphical output
-tfont = {'FontName', 'Helvetica', 'FontSize', 14, 'FontAngle', 'italic'};
 sfont = {'FontName', 'Helvetica', 'FontSize', 18};
 lfont = {'FontName', 'Helvetica', 'FontSize', 22};
-
-%Double-exponential function for fitting
-turnoverFn = @(b,x)(b(1) .* exp(b(2) .* x))+(b(3) .* exp(b(4) .* x)) +b(5);
-bInit = [.8 -.1 .2 -0.01 0];
-lb = [0 -Inf 0 -Inf 0];
-ub = [1.2 0 1.2 0 .2];
-
-fitOptions = statset('Robust','on','MaxIter',500,'Display','off');
-
-opts = optimset('MaxFunEvals', 1e4, ...
-    'MaxIter', 1e4, ...
-    'Display', 'off', ...
-    'TolX', 1e-8, ...
-    'Tolfun', 1e-8);
-
 
 %% Read images
 
@@ -183,7 +167,7 @@ for i = 1:numel(data)
     P = dL .* cos((repmat(alpha,1,nPoints) - alpha0)*pi/180);
     d_centrosomes = diff(P, [], 2);
     
-    heat_map = NaN(numel(times), round(d_centrosomes));
+    heat_map = NaN(numel(times), round(max(d_centrosomes)));
     for iT = 1 : numel(times)
         t = times(iT);
         color = colors(iT, :);
@@ -302,9 +286,6 @@ for i = 1:numel(data)
         xlim([0 max(d_centrosomes)])
         print(gcf, '-dpng', fullfile(outputDir, ['Time' num2str(t) '-fitted.png']));
         close(gcf);
-        
-        % Integrate intensity
-        plot(dsignal(iT), Isignal(iT), 'o', 'Color', color, 'MarkerFaceColor', color);
     end
     
     % Tranform times into real units
@@ -356,13 +337,8 @@ for i = 1:numel(data)
     dI = Asignal - Asignal2;
     dInorm = dI/dI(1);
     
-    % [bFit,resFit,~,covFit,mseFit] = nlinfit(times,dInorm,turnoverFn,...
-    %    bInit,fitOptions);
-    %Get confidence intervals of fit and fit values
-    %     [fitValues,deltaFit] = nlpredci(turnoverFn,times,bFit,resFit,'covar',covFit,'mse',mseFit);
-    diffFn = @(p) turnoverFn(p, times) - dInorm;
-    [bFit, resnorm] = lsqnonlin(diffFn, bInit, lb, ub, opts);
-    data(i).r2 = 1 - resnorm / norm(dInorm-mean(dInorm))^2;
+    [bFit, r2, yfit] = fitPADecay(times, dInorm);
+    data(i).r2 = r2;
     
     % Save turnover results locally
     data(i).dInorm = dInorm;
@@ -375,7 +351,7 @@ for i = 1:numel(data)
     turnoverFig = figure('Visible','off');
     plot(times, dInorm, 'ok');
     hold on
-    plot(times, turnoverFn(bFit, times), '--k');
+    plot(times, yfit, '--k');
     box on
     set(gca, 'LineWidth', 1.5, sfont{:}, 'Layer', 'top');
     xlabel('Time (s)', lfont{:});
@@ -386,13 +362,13 @@ for i = 1:numel(data)
     % Compute corr
     if ~isempty(corrData);
         dInorm_corr = dInorm./corrData;
-        diffFn = @(p) turnoverFn(p, times) - dInorm_corr;
-        [bFit, resnorm] = lsqnonlin(diffFn, bInit, lb, ub, opts);
+        [bFit_corr, r2_corr, yfit_corr] = fitPADecay(times, dInorm_corr);
         data(i).dInorm_corr = dInorm_corr;
-        data(i).r2_corr = 1 - resnorm / norm(dInorm_corr-mean(dInorm_corr))^2;
-        data(i).t1_corr = -1/bFit(2);
-        data(i).t2_corr = -1/bFit(4);
+        data(i).r2_corr = r2_corr;
+        data(i).t1_corr = -1/bFit_corr(2);
+        data(i).t2_corr = -1/bFit_corr(4);
         plot(times, dInorm_corr, 'or');
+        plot(times, yfit_corr, '--r');
     end
     
     % Save flux results locally and on the server

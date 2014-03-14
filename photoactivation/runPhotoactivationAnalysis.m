@@ -34,7 +34,7 @@ if ~isempty(corrId),
 end
     
 % Wrong images (to exclude from the analysis)
-invalidIds = [3991, 3412, 6170, 3547, corrId];
+invalidIds = [3991, 3412, 6170, 3547, 3513, corrId];
 %% OMERO.matlab initialization
 
 % Create client/session
