@@ -81,7 +81,7 @@ all_positions(:, negative_slopes) = - all_positions(:, negative_slopes);
 % filters(6).name = '.95 ';
 % filters(6).values = r2_filter_95;
 % filters = filters([1 5 6]);
-filters = [.9];
+filters = [.8 .85 .9 .95 .98];
 % Average and fit the normalized intensities
 dataTypes(1).name = 'uncorrected';
 dataTypes(1).field = 'dInorm';
@@ -108,7 +108,7 @@ for iType = 2 : numel(dataTypes)
                 data(i).(dataTypes(iType).field), maxTime);
             fprintf(fid, '%s\t%g\t%g\t%g\t%g\t%g\t%g\n', data(i).name, data(i).id,...
                 data(i).speed_full, data(i).speed_half,...
-                -1/bFit(2), -1/bFit(4), r2(i));
+                bFit(2), bFit(4), r2(i));
         end
         r2 = r2(validData);
         
@@ -133,10 +133,12 @@ for iType = 2 : numel(dataTypes)
 
 %             [bFit, r2] = fitPADecay(data(1).times, dInorm_filt, maxTime);
             [bFit, r2Fit, ci] = fitPADecay(times(:), dInorm_filt(:), maxTime);
-            t1_filt(iFilter) = -1/bFit(2);
-            t2_filt(iFilter) = -1/bFit(4);
+            [bFit, r2Fit, ci] = fitPADecay(mean(times,2), mean(dInorm_filt,2), maxTime);            t2_filt(iFilter) = bFit(4);
             r2_filt(iFilter) = r2Fit;
-            [bFit(1) bFit(3)]
+            t1_filt(iFilter) = bFit(2);
+            t2_filt(iFilter) = bFit(4);
+            dt1_filt(iFilter) = ci(2);
+            dt2_filt(iFilter) = ci(4);
         end
         
         
@@ -145,15 +147,15 @@ for iType = 2 : numel(dataTypes)
             'Half-range speed (microns/min)\t'...
             'Fast turnover time (s)\tSlow turnover time (s)\tr2\n']);
         for i = 1 : numel(filters)
-            fprintf(fid, '%s\t%g\t%g\t%g\t%g\t%g\t%g\n', filters(i),...
+            fprintf(fid, '%s\t%g\t%g\t%g\t%g+/-%g\t%g+/-%g\t%g\n', filters(i),...
                 nansum(index{i}), speed_full(i), speed_half(i),...
-                t1_filt(i), t2_filt(i), r2_filt(i));
+                t1_filt(i), dt1_filt(i), t2_filt(i), dt2_filt(i), r2_filt(i));
         end
         fclose(fid);
         
         % Upload results file to OMERO
-%         uploadFileResults(session, resultsPath, 'dataset', datasetId,...
-%             [ns '.result.' dataTypes(iType).name '.' num2str(maxTime)]);
+        uploadFileResults(session, resultsPath, 'dataset', datasetId,...
+            [ns '.result.' dataTypes(iType).name '.' num2str(maxTime)]);
     end
 end
 

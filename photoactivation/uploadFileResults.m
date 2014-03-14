@@ -1,5 +1,5 @@
 function fa = uploadFileResults(session, filepath, type, id, namespace)
-return
+
 % Input check
 ip = inputParser;
 ip.addRequired('filepath', @(x) ischar(x) && exist(x, 'file') == 2);
