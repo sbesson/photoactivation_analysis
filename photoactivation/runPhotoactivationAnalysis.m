@@ -84,11 +84,17 @@ else
     datasetIds = ids;
 end
 
+analyse_movies = 1;
+analyse_dataset = 0;
 try
     for datasetId = datasetIds
-%         runDatasetPAAnalysis(session, datasetId, meanCorrDat,...
-%             'invalidIds', invalidIds);
-        combineDatasetPAAnalysis(session, datasetId);
+        if analyse_movies
+            runDatasetPAAnalysis(session, datasetId, meanCorrDat,...
+                'invalidIds', invalidIds);
+        end
+        if analyse_dataset
+            combineDatasetPAAnalysis(session, datasetId);
+        end
     end
 catch ME
     fprintf(1, 'Error while analyzing dataset %g: %s\n', datasetId, ME.message);
