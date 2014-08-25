@@ -18,6 +18,26 @@ function [outlierIdx,inlierIdx] = detectOutliers(observations,k)
 %Hunter Elliott, 6/4/2009  - switched median to nanmedian to support
 %missing observations.
 
+%
+% Copyright (C) 2013 LCCB 
+%
+% This file is part of QFSM.
+% 
+% QFSM is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% QFSM is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with QFSM.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
+
 if nargin < 2 || isempty(k)
     k = 3;
 end
