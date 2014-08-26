@@ -7,14 +7,14 @@ ip.parse(varargin{:});
 range = times <= ip.Results.maxTime;
 
 %Double-exponential function for fitting
-turnoverFn = @(b,x) b(1) .* exp(-x/b(2)) + b(3) .* exp(-x/b(4)) + (1-b(1)-b(3));
+turnoverFn = @(b,x) b(1) .* exp(-x/b(2)) + b(3) .* exp(-x/b(4));
 diffFn = @(p) turnoverFn(p, times(range)) - dI(range);
 
 
 % Initial parameters
 bInit = [.8 20 .2 100];
 lb = [0 1 0 40];
-ub = [1.2 40 1.2 600];
+ub = [1.2 40 1.2 Inf];
 
 % Define fitting options
 opts = optimset('MaxFunEvals', 1e4, ...
