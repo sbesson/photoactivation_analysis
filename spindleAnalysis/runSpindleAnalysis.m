@@ -3,8 +3,8 @@ clc
 close all
 
 % Define constants
-dataPath = uigetdir('Select the main directory');
-% dataPath = '/Users/sebastien/Desktop/Bipolar spindle assembly assay';
+%dataPath = uigetdir('Select the main directory');
+dataPath = '/Users/sebastien/Desktop/Ammended data - accounts for EMCCD swap';
 if isequal(dataPath, 0), return; end
 
 % Create output folder for aligned data
@@ -27,7 +27,7 @@ fileLog = cell(nConditions, 1);
 if ~isdir(alignedDataPath), mkdir(alignedDataPath); end
 
 % Alignment parameters
-minSpindleLength = 6; % minimum spindle length (in microns)
+minSpindleLength = 5; % minimum spindle length (in microns)
 sigma = 3; % Sigma to exclude outliers (using final spindle length)
 
 % Define mapping for bar graphs
@@ -177,7 +177,7 @@ save(fullfile(dataPath, 'analysis.mat'), 'conditions');
 %% Graphic properties
 conditionNames = {conditions.name};
 % Conditions to be plotted, set to 1 : numel(conditions) to plot all graphs
-conditions2plot = [1 3 5 6 7 8 9 10 12 13 14 15 11];
+conditions2plot = 1:numel(conditions);
 % Maximum value of the spindle length
 ymax = 18;
 disp(sprintf('Generating graph for %s\n', conditionNames{conditions2plot}))
@@ -257,3 +257,10 @@ clf(conditionFig);
 %     end
 % end
 % close(conditionFig);
+
+%%
+for iCondition = 1:numel(conditions)
+    prealignement =  conditions(iCondition).alignedData(conditions(iCondition).alignedTimes < 0,:);
+    fprintf(1, '%s\n', conditions(iCondition).name);
+    fprintf(1, '%g +/- %g um\n', nanmean(prealignement(:)), nanstd(prealignement(:), 1));
+end
